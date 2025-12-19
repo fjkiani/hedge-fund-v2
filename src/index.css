@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background Layers */
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-tertiary: #1a1a25;
+    --bg-hover: #22222f;
+    
+    /* Accent Colors */
+    --accent-green: #00ff88;
+    --accent-red: #ff3366;
+    --accent-blue: #00d4ff;
+    --accent-purple: #a855f7;
+    --accent-orange: #ff9500;
+    --accent-gold: #ffd700;
+    
+    /* Text */
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b0;
+    --text-muted: #606070;
+    
+    /* Borders */
+    --border-subtle: #2a2a35;
+    --border-active: #3a3a45;
+  }
+  
+  * {
+    @apply border-border-subtle;
+  }
+  
+  body {
+    @apply bg-bg-primary text-text-primary font-sans antialiased;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-bg-secondary;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-active rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-border-active;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-secondary border border-border-subtle rounded-lg p-4;
+  }
+  
+  .card-header {
+    @apply flex items-center justify-between mb-4;
+  }
+  
+  .card-title {
+    @apply text-lg font-display font-semibold text-text-primary;
+  }
+  
+  .card-footer {
+    @apply mt-4 pt-4 border-t border-border-subtle flex items-center justify-between text-sm text-text-muted;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2 py-1 rounded-md text-xs font-medium;
+  }
+  
+  .badge-bullish {
+    @apply bg-accent-green/20 text-accent-green border border-accent-green/30;
+  }
+  
+  .badge-bearish {
+    @apply bg-accent-red/20 text-accent-red border border-accent-red/30;
+  }
+  
+  .badge-neutral {
+    @apply bg-accent-blue/20 text-accent-blue border border-accent-blue/30;
+  }
+  
+  .glow-green {
+    @apply shadow-glow-green;
+  }
+  
+  .glow-red {
+    @apply shadow-glow-red;
+  }
+  
+  .glow-blue {
+    @apply shadow-glow-blue;
+  }
+  
+  .glow-purple {
+    @apply shadow-glow-purple;
+  }
+}
