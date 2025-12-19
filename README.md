@@ -1,73 +1,61 @@
-# React + TypeScript + Vite
+# Alpha Terminal Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Real-time institutional intelligence dashboard built with Vite.js + React 18.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Vite.js** - Lightning-fast dev server and build tool
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Utility-first styling
+- **Zustand** - State management
+- **React Router v6** - Client-side routing
+- **Framer Motion** - Animations
+- **TradingView Lightweight Charts** - Professional charts
+- **Recharts** - Additional charting
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Install dependencies
+npm install
 
-## Expanding the ESLint configuration
+# Copy environment variables
+cp .env.example .env
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Start dev server
+npm run dev
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Build for production
+npm run build
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Preview production build
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── components/
+│   ├── ui/          # Base UI components (Card, Badge, etc.)
+│   ├── widgets/     # Dashboard widgets
+│   ├── charts/      # Chart components
+│   └── layout/      # Layout components (Header, Sidebar)
+├── pages/           # Page components
+├── hooks/           # Custom React hooks
+├── lib/             # Utilities (API client, formatters)
+├── stores/          # Zustand stores
+└── types/           # TypeScript type definitions
+```
+
+## Environment Variables
+
+- `VITE_API_URL` - Backend API URL (default: http://localhost:8000/api/v1)
+- `VITE_WS_URL` - WebSocket URL (default: ws://localhost:8000/api/v1)
+
+## Development
+
+The dev server runs on `http://localhost:5173` by default (Vite's default port).
+
+Hot Module Replacement (HMR) is enabled for instant updates during development.
