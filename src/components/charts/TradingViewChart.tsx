@@ -1,19 +1,30 @@
 /**
- * TradingView Lightweight Charts Component
- * 
- * Supports:
- * - Real-time price updates
- * - Automatic DP level overlays (horizontal lines)
- * - Gamma flip level markers
- * - VWAP line
- * - Volume bars
- * - Custom markers for signals
+ * TradingViewChart — The Rifle
+ *
+ * Dumb renderer. Owns:
+ *   - Candlestick series
+ *   - Volume histogram
+ *   - All price line overlays (DP levels, gamma flip, VWAP, MAs, pivots, traps)
+ *
+ * Does NOT fetch data. Does NOT own state beyond chart lifecycle.
+ * All data flows in via props. Chart rebuilds when key changes (symbol/timeframe).
+ *
+ * Props contract:
+ *   data        → OHLCV candles from /charts/{symbol}/ohlc
+ *   dpLevels    → Dark pool levels (price, type, strength)
+ *   gammaWalls  → GEX walls (strike, gex, signal)
+ *   gammaFlip   → Gamma flip price
+ *   vwap        → VWAP
+ *   movingAvgs  → MA50/100/200 SMA+EMA values + signals
+ *   pivots      → Classic/Fib/Camarilla pivot sets
+ *   traps       → Classified trap zones (for zone shading)
+ *   alertLevel  → Border color
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { 
-  createChart, 
-  ColorType, 
+import {
+  createChart,
+  ColorType,
   LineStyle,
   CandlestickSeries,
   HistogramSeries,
@@ -21,98 +32,178 @@ import {
   type ISeriesApi,
 } from 'lightweight-charts';
 
-interface DPLevel {
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export interface OHLCBar {
+  time: number; // Unix timestamp (seconds)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface DPLevel {
   price: number;
   volume: number;
   type: 'SUPPORT' | 'RESISTANCE' | 'BATTLEGROUND';
   strength: 'WEAK' | 'MODERATE' | 'STRONG';
 }
 
-interface TradingViewChartProps {
-  symbol?: string;
-  data?: Array<{
-    time: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }>;
-  dpLevels?: DPLevel[];
-  gammaFlipLevel?: number;
-  vwap?: number;
-  currentPrice?: number;
-  onLevelClick?: (level: DPLevel) => void;
+export interface GammaWall {
+  strike: number;
+  gex: number;
+  signal: 'SUPPORT' | 'RESISTANCE';
 }
 
+export interface MALevel {
+  value: number;
+  signal: 'BUY' | 'SELL' | 'NEUTRAL';
+}
+
+export interface PivotSet {
+  P: number;
+  R1: number; R2: number; R3: number;
+  S1: number; S2: number; S3: number;
+  R4?: number; S4?: number;
+}
+
+export interface TrapZoneOverlay {
+  price_min: number;
+  price_max: number;
+  type: string;
+  conviction: number;
+  emoji: string;
+}
+
+export interface TradingViewChartProps {
+  // Core
+  symbol?: string;
+  data?: OHLCBar[];
+  alertLevel?: 'GREEN' | 'YELLOW' | 'RED' | null;
+
+  // Overlays
+  dpLevels?: DPLevel[];
+  gammaWalls?: GammaWall[];
+  gammaFlipLevel?: number | null;
+  vwap?: number | null;
+  currentPrice?: number;
+
+  // MA lines
+  movingAvgs?: Record<string, MALevel>; // key: "MA200_SMA", etc.
+
+  // Pivot lines
+  pivots?: {
+    classic?: PivotSet;
+    fibonacci?: PivotSet;
+    camarilla?: PivotSet;
+  };
+
+  // Trap zone overlays (midpoint line per trap)
+  traps?: TrapZoneOverlay[];
+
+  height?: number;
+}
+
+// ── MA line config ────────────────────────────────────────────────────────
+
+const MA_CONFIG: Record<string, { color: string; style: LineStyle; width: number }> = {
+  MA200_SMA: { color: '#ff3366', style: LineStyle.Solid, width: 2 },
+  MA200_EMA: { color: '#ff6699', style: LineStyle.Dashed, width: 2 },
+  MA100_SMA: { color: '#ff8c00', style: LineStyle.Solid, width: 1 },
+  MA100_EMA: { color: '#ffb347', style: LineStyle.Dashed, width: 1 },
+  MA50_SMA: { color: '#3399ff', style: LineStyle.Solid, width: 1 },
+  MA50_EMA: { color: '#66b2ff', style: LineStyle.Dashed, width: 1 },
+};
+
+const TRAP_COLORS: Record<string, string> = {
+  BEAR_TRAP_COIL: '#00ff88',
+  BULL_TRAP: '#ff3366',
+  CEILING_TRAP: '#ff3366',
+  LIQUIDITY_TRAP: '#ffd700',
+  DEATH_CROSS_TRAP: '#ff0000',
+  WAR_HEADLINE: '#a855f7',
+};
+
+// ── Component ─────────────────────────────────────────────────────────────
+
 export function TradingViewChart({
+  symbol,
   data = [],
+  alertLevel,
   dpLevels = [],
+  gammaWalls = [],
   gammaFlipLevel,
   vwap,
   currentPrice,
+  movingAvgs = {},
+  pivots = {},
+  traps = [],
+  height = 460,
 }: TradingViewChartProps) {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
-  const priceLinesRef = useRef<Array<{ id: string; priceLine: any }>>([]);
-  const [isReady, setIsReady] = useState(false);
+  const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const linesRef = useRef<any[]>([]);
+  const [ready, setReady] = useState(false);
 
+  // ── Init chart (once per symbol/height) ──────────────────────────────────
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!containerRef.current) return;
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
+    const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0a0f' },
-        textColor: '#a0a0b0',
+        background: { type: ColorType.Solid, color: '#08080f' },
+        textColor: '#8888a0',
       },
       grid: {
-        vertLines: { color: '#2a2a35' },
-        horzLines: { color: '#2a2a35' },
+        vertLines: { color: '#1a1a28' },
+        horzLines: { color: '#1a1a28' },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
+      width: containerRef.current.clientWidth,
+      height,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
+        borderColor: '#1a1a28',
       },
       rightPriceScale: {
-        borderColor: '#2a2a35',
+        borderColor: '#1a1a28',
+        scaleMargins: { top: 0.08, bottom: 0.15 },
+      },
+      crosshair: {
+        vertLine: { color: '#3a3a5a', width: 1, style: LineStyle.Dashed },
+        horzLine: { color: '#3a3a5a', width: 1, style: LineStyle.Dashed },
       },
     });
 
     chartRef.current = chart;
 
-    // Create candlestick series using addSeries with series definition
-    const candlestick = chart.addSeries(CandlestickSeries, {
-      upColor: '#00ff88',
-      downColor: '#ff3366',
+    // Candlestick
+    const candle = chart.addSeries(CandlestickSeries, {
+      upColor: '#00e676',
+      downColor: '#ff1744',
       borderVisible: false,
-      wickUpColor: '#00ff88',
-      wickDownColor: '#ff3366',
+      wickUpColor: '#00e676',
+      wickDownColor: '#ff1744',
     }) as ISeriesApi<'Candlestick'>;
-    candlestickSeriesRef.current = candlestick;
+    candleRef.current = candle;
 
-    // Create volume series
-    const volume = chart.addSeries(HistogramSeries, {
-      color: '#00d4ff',
-      priceFormat: {
-        type: 'volume',
-      },
+    // Volume
+    const vol = chart.addSeries(HistogramSeries, {
+      color: '#00d4ff20',
+      priceFormat: { type: 'volume' },
       priceScaleId: '',
     }) as ISeriesApi<'Histogram'>;
-    volumeSeriesRef.current = volume;
+    vol.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+    volRef.current = vol;
 
-    setIsReady(true);
+    setReady(true);
 
-    // Handle resize
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
+      if (containerRef.current) {
+        chart.applyOptions({ width: containerRef.current.clientWidth });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -120,123 +211,127 @@ export function TradingViewChart({
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
+      chartRef.current = null;
+      candleRef.current = null;
+      volRef.current = null;
+      linesRef.current = [];
+      setReady(false);
     };
-  }, []);
+  }, [symbol, height]); // Recreate chart on symbol switch
 
-  // Update chart data
+  // ── Data ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !isReady) return;
+    if (!candleRef.current || !volRef.current || !ready || data.length === 0) return;
 
-    // Format data for TradingView (convert time string to timestamp)
-    const formattedData = data.map((bar) => ({
-      time: (new Date(bar.time).getTime() / 1000) as any, // Convert to Unix timestamp
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
-    }));
+    candleRef.current.setData(data.map(bar => ({
+      time: bar.time as any,
+      open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+    })));
 
-    const volumeData = data.map((bar) => ({
-      time: (new Date(bar.time).getTime() / 1000) as any,
+    volRef.current.setData(data.map(bar => ({
+      time: bar.time as any,
       value: bar.volume,
-      color: bar.close >= bar.open ? '#00ff8840' : '#ff336640',
-    }));
+      color: bar.close >= bar.open ? '#00e67620' : '#ff174420',
+    })));
 
-    candlestickSeriesRef.current.setData(formattedData);
-    volumeSeriesRef.current.setData(volumeData);
-  }, [data, isReady]);
+    chartRef.current?.timeScale().fitContent();
+  }, [data, ready]);
 
-  // Add DP level overlays
+  // ── All price line overlays ────────────────────────────────────────────────
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !isReady) return;
+    if (!candleRef.current || !ready) return;
 
-    // Clear existing price lines
-    priceLinesRef.current.forEach(({ priceLine }) => {
-      candlestickSeriesRef.current!.removePriceLine(priceLine);
+    // Clear
+    linesRef.current.forEach(line => {
+      candleRef.current?.removePriceLine(line);
     });
-    priceLinesRef.current = [];
+    linesRef.current = [];
 
-    // Add DP levels as price lines
-    dpLevels.forEach((level, idx) => {
-      const color = 
-        level.type === 'SUPPORT' ? '#00ff88' :
-        level.type === 'RESISTANCE' ? '#ff3366' :
-        '#ffd700'; // BATTLEGROUND = gold
-
-      const lineWidth = 
-        level.strength === 'STRONG' ? 3 :
-        level.strength === 'MODERATE' ? 2 : 1;
-
-      const lineStyle = 
-        level.type === 'BATTLEGROUND' ? LineStyle.Dashed : LineStyle.Solid;
-
-      const priceLine = candlestickSeriesRef.current!.createPriceLine({
-        price: level.price,
-        color: color,
-        lineWidth: lineWidth,
-        lineStyle: lineStyle,
-        axisLabelVisible: true,
-        title: `${level.type} ${level.volume.toLocaleString()}`,
+    const addLine = (
+      price: number,
+      color: string,
+      title: string,
+      width: 1 | 2 | 3 | 4 = 1,
+      style: LineStyle = LineStyle.Solid
+    ) => {
+      if (!price || isNaN(price)) return;
+      const line = candleRef.current!.createPriceLine({
+        price, color, lineWidth: width, lineStyle: style,
+        axisLabelVisible: true, title,
+        axisLabelColor: color, axisLabelTextColor: color,
         lineVisible: true,
-        axisLabelColor: color,
-        axisLabelTextColor: color,
       });
+      linesRef.current.push(line);
+    };
 
-      priceLinesRef.current.push({ id: `dp-${idx}`, priceLine });
+    // 1. DP levels
+    dpLevels.forEach((lvl) => {
+      if (!lvl.price) return;
+      const color = lvl.type === 'SUPPORT' ? '#00ff88' : lvl.type === 'RESISTANCE' ? '#ff3366' : '#ffd700';
+      const w: 1 | 2 | 3 = lvl.strength === 'STRONG' ? 2 : lvl.strength === 'MODERATE' ? 1 : 1;
+      addLine(lvl.price, color, `DP ${lvl.type}`, w, lvl.type === 'BATTLEGROUND' ? LineStyle.Dashed : LineStyle.Solid);
     });
 
-    // Add gamma flip level
+    // 2. GEX walls
+    gammaWalls.forEach((wall) => {
+      const color = wall.gex > 0 ? '#ff9800' : '#00bcd4';
+      const absGex = Math.abs(wall.gex);
+      const w: 1 | 2 | 3 = absGex > 500_000 ? 2 : 1;
+      addLine(wall.strike, color, `GEX ${wall.gex > 0 ? '▲' : '▼'} ${(absGex / 1000).toFixed(0)}K`, w, LineStyle.Dotted);
+    });
+
+    // 3. Gamma flip
     if (gammaFlipLevel) {
-      const priceLine = candlestickSeriesRef.current.createPriceLine({
-        price: gammaFlipLevel,
-        color: '#a855f7',
-        lineWidth: 2,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: 'Gamma Flip',
-        lineVisible: true,
-        axisLabelColor: '#a855f7',
-        axisLabelTextColor: '#a855f7',
-      });
-      priceLinesRef.current.push({ id: 'gamma-flip', priceLine });
+      addLine(gammaFlipLevel, '#a855f7', 'γ Flip', 2, LineStyle.Dotted);
     }
 
-    // Add VWAP line
+    // 4. VWAP
     if (vwap) {
-      const priceLine = candlestickSeriesRef.current.createPriceLine({
-        price: vwap,
-        color: '#00d4ff',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: 'VWAP',
-        lineVisible: true,
-        axisLabelColor: '#00d4ff',
-        axisLabelTextColor: '#00d4ff',
-      });
-      priceLinesRef.current.push({ id: 'vwap', priceLine });
+      addLine(vwap, '#00d4ff', 'VWAP', 1, LineStyle.Dashed);
     }
 
-    // Add current price line
+    // 5. Current price
     if (currentPrice) {
-      const priceLine = candlestickSeriesRef.current.createPriceLine({
-        price: currentPrice,
-        color: '#ffffff',
-        lineWidth: 1,
-        lineStyle: LineStyle.Solid,
-        axisLabelVisible: true,
-        title: 'Current',
-        lineVisible: true,
-        axisLabelColor: '#ffffff',
-        axisLabelTextColor: '#ffffff',
-      });
-      priceLinesRef.current.push({ id: 'current', priceLine });
+      addLine(currentPrice, '#ffffff', '● Now', 1, LineStyle.Solid);
     }
-  }, [dpLevels, gammaFlipLevel, vwap, currentPrice, isReady]);
+
+    // 6. MA lines
+    Object.entries(movingAvgs).forEach(([key, ma]) => {
+      const cfg = MA_CONFIG[key];
+      if (!cfg || !ma?.value) return;
+      addLine(ma.value, cfg.color, `${key} (${ma.signal})`, cfg.width as 1 | 2, cfg.style);
+    });
+
+    // 7. Classic pivots (main set only, avoid clutter)
+    if (pivots.classic) {
+      const p = pivots.classic;
+      addLine(p.P, '#ffffff', 'Pivot', 1, LineStyle.Dotted);
+      addLine(p.R1, '#4488ff', 'R1', 1, LineStyle.Dashed);
+      addLine(p.R2, '#4488ff', 'R2', 1, LineStyle.Dashed);
+      addLine(p.S1, '#4488ff', 'S1', 1, LineStyle.Dashed);
+      addLine(p.S2, '#4488ff', 'S2', 1, LineStyle.Dashed);
+    }
+
+    // 8. Trap zone midpoint lines
+    traps.forEach((trap) => {
+      const mid = (trap.price_min + trap.price_max) / 2;
+      const color = TRAP_COLORS[trap.type] ?? '#888888';
+      const label = `${trap.emoji} ${trap.type.replace(/_/g, ' ')} [${trap.conviction}/5]`;
+      addLine(mid, color, label, 2, LineStyle.Solid);
+    });
+
+  }, [dpLevels, gammaWalls, gammaFlipLevel, vwap, currentPrice, movingAvgs, pivots, traps, ready]);
+
+  // ── Alert border ──────────────────────────────────────────────────────────
+  const borderGlow =
+    alertLevel === 'RED' ? 'shadow-[0_0_0_1px_rgba(239,68,68,0.4)] ring-1 ring-red-500/30' :
+      alertLevel === 'YELLOW' ? 'shadow-[0_0_0_1px_rgba(234,179,8,0.4)] ring-1 ring-yellow-500/30' :
+        alertLevel === 'GREEN' ? 'shadow-[0_0_0_1px_rgba(34,197,94,0.3)] ring-1 ring-green-500/20' :
+          '';
 
   return (
-    <div className="w-full h-full">
-      <div ref={chartContainerRef} className="w-full" style={{ height: '400px' }} />
+    <div className={`w-full rounded-xl overflow-hidden ${borderGlow}`}>
+      <div ref={containerRef} className="w-full" style={{ height: `${height}px` }} />
     </div>
   );
 }

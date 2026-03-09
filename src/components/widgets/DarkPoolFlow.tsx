@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { darkpoolApi } from '../../lib/api';
 
 interface DPLevel {
   price: number;
@@ -58,23 +59,16 @@ export function DarkPoolFlow({
       setLoading(true);
       setError(null);
 
-      // Fetch levels
-      const levelsRes = await fetch(`/api/v1/darkpool/${symbol}/levels`);
-      if (!levelsRes.ok) throw new Error('Failed to fetch DP levels');
-      const levelsData = await levelsRes.json();
+      // Fetch all DP data in parallel with explicit type casting
+      const [levelsData, summaryData, printsData] = await Promise.all([
+        darkpoolApi.getLevels(symbol) as Promise<any>,
+        darkpoolApi.getSummary(symbol) as Promise<any>,
+        darkpoolApi.getPrints(symbol, 10) as Promise<any>
+      ]);
+
       setLevels(levelsData.levels || []);
       setCurrentPrice(levelsData.current_price || null);
-
-      // Fetch summary
-      const summaryRes = await fetch(`/api/v1/darkpool/${symbol}/summary`);
-      if (!summaryRes.ok) throw new Error('Failed to fetch DP summary');
-      const summaryData = await summaryRes.json();
       setSummary(summaryData.summary || null);
-
-      // Fetch prints
-      const printsRes = await fetch(`/api/v1/darkpool/${symbol}/prints?limit=10`);
-      if (!printsRes.ok) throw new Error('Failed to fetch DP prints');
-      const printsData = await printsRes.json();
       setPrints(printsData.prints || []);
 
     } catch (err) {
@@ -261,11 +255,11 @@ export function DarkPoolFlow({
               <XAxis type="number" />
               <YAxis dataKey="price" type="category" width={80} />
               <Tooltip
-                formatter={(value: number, name: string, props: any) => {
-                  if (name === 'volume') {
+                formatter={(value: number | undefined, name: string | undefined) => {
+                  if (name === 'volume' && typeof value === 'number') {
                     return [formatVolume(value), 'Volume'];
                   }
-                  return [value, name];
+                  return [value ?? 0, name ?? 'Unknown'];
                 }}
               />
               <Bar dataKey="volume" radius={[0, 4, 4, 0]}>
