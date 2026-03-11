@@ -40,8 +40,8 @@ export function SignalsCenter() {
 
   useEffect(() => {
     loadSignals();
-    // Refresh every 10 seconds
-    const interval = setInterval(loadSignals, 10000);
+    // Refresh every 60 seconds (signals are rare events, not tick data)
+    const interval = setInterval(loadSignals, 60_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -53,18 +53,18 @@ export function SignalsCenter() {
   const loadSignals = async () => {
     try {
       setLoading(true);
-      setError(null);
 
-      const [allSignals, masterOnly] = await Promise.all([
+      const [allRes, masterRes] = await Promise.allSettled([
         signalsApi.getAll() as Promise<SignalResponse>,
         signalsApi.getMaster() as Promise<SignalResponse>
       ]);
 
-      setSignals(allSignals?.signals || []);
-      setMasterSignals(masterOnly?.signals || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load signals');
-      console.error('Error loading signals:', err);
+      if (allRes.status === 'fulfilled') setSignals(allRes.value?.signals || []);
+      if (masterRes.status === 'fulfilled') setMasterSignals(masterRes.value?.signals || []);
+      // Don't set error — empty signals is normal, timeouts are non-critical
+      setError(null);
+    } catch {
+      // Silently fail — signals widget is informational, not critical
     } finally {
       setLoading(false);
     }
@@ -79,8 +79,8 @@ export function SignalsCenter() {
           .map((s: any) => s.symbol as string)
       );
       setDpConfluence(confluenceSymbols);
-    } catch (err) {
-      console.error('Error checking DP confluence:', err);
+    } catch {
+      // Non-critical — DP confluence badge is a nice-to-have overlay
     }
   };
 
