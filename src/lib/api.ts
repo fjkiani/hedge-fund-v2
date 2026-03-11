@@ -100,6 +100,7 @@ export const dpApi = {
   getDivergenceSignals: () => api.get('/signals/divergence'),
   getPatterns: () => api.get('/dp/patterns'),
   getPrediction: (symbol: string) => api.get(`/dp/prediction/${symbol}`),
+  getTrends: (symbol: string, days: number = 30) => api.get(`/dp/trends/${symbol}?days=${days}`),
 };
 
 // Dark Pool Data
