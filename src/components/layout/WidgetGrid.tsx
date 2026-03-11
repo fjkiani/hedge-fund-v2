@@ -1,10 +1,12 @@
 import { MarketOverview } from '../widgets/MarketOverview';
 import { SignalsCenter } from '../widgets/SignalsCenter';
 import { NarrativeBrain } from '../widgets/NarrativeBrain';
+import { SessionMemoryPanel } from '../widgets/SessionMemoryPanel';
 import { DPEdgeDashboard } from '../widgets/DPEdgeDashboard';
 import { SystemHealth } from '../widgets/SystemHealth';
 import { MarketRegime } from '../widgets/MarketRegime';
 import { KillChainDashboard } from '../widgets/KillChainDashboard';
+import { EconomicExploit } from '../widgets/EconomicExploit';
 
 export function WidgetGrid() {
   return (
@@ -17,6 +19,11 @@ export function WidgetGrid() {
       {/* Kill Chain Intelligence - Full Width */}
       <div className="col-span-12">
         <KillChainDashboard />
+      </div>
+
+      {/* Economic Exploit - Full Width */}
+      <div className="col-span-12">
+        <EconomicExploit />
       </div>
 
       {/* Market Regime + System Health - Side by Side */}
@@ -40,6 +47,11 @@ export function WidgetGrid() {
       {/* Narrative Brain - Right Column */}
       <div className="col-span-6">
         <NarrativeBrain />
+      </div>
+
+      {/* Session Memory - Yesterday's Context */}
+      <div className="col-span-6">
+        <SessionMemoryPanel />
       </div>
     </div>
   );
