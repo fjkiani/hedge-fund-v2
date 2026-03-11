@@ -4,6 +4,8 @@
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1';
+// Monitor endpoints live on root (BaseHTTPServer), not under /api/v1
+const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || API_URL.replace('/api/v1', '');
 
 export const api = {
   baseURL: API_URL,
@@ -117,9 +119,17 @@ export const killchainApi = {
   scan: () => api.get('/killchain/scan'),
   narrative: () => api.get('/killchain/narrative'),
   gex: (symbol: string) => api.get(`/killchain/gex/${symbol}`),
-  // 🐺 Triple Confluence Monitor (Mars Rules)
-  monitor: () => api.get('/kill-chain'),
-  paperTrades: () => api.get('/paper-trades'),
+  // 🐺 Triple Confluence Monitor — hits ROOT endpoints (BaseHTTPServer on Render)
+  monitor: async () => {
+    const res = await fetch(`${MONITOR_URL}/kill-chain`);
+    if (!res.ok) throw new Error(`Kill chain: ${res.statusText}`);
+    return res.json();
+  },
+  paperTrades: async () => {
+    const res = await fetch(`${MONITOR_URL}/paper-trades`);
+    if (!res.ok) throw new Error(`Paper trades: ${res.statusText}`);
+    return res.json();
+  },
 };
 
 // Economic Intelligence
