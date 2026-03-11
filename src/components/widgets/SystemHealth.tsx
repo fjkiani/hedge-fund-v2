@@ -12,7 +12,7 @@ interface CheckerHealth {
   last_success: string | null;
   last_error: string | null;
   alerts_today: number;
-  alerts_24h: int;
+  alerts_24h: number;
   win_rate_7d: number | null;
   total_trades_7d: number;
   expected_interval: number;
@@ -31,15 +31,28 @@ interface HealthSummary {
   timestamp: string;
 }
 
+interface WinRatesData {
+  win_rates: Array<{ checker_name: string; date: string; win_rate: number; total_trades: number }>;
+  dp_learning_stats: {
+    checker_name: string;
+    win_rate: number;
+    total_trades: number;
+    bounces: number;
+    breaks: number;
+    source: string;
+  } | null;
+  has_data: boolean;
+}
+
 export function SystemHealth() {
   const [health, setHealth] = useState<HealthSummary | null>(null);
+  const [winRates, setWinRates] = useState<WinRatesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedChecker, setExpandedChecker] = useState<string | null>(null);
 
   useEffect(() => {
     loadHealth();
-    // Refresh every 30 seconds
     const interval = setInterval(loadHealth, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -48,8 +61,12 @@ export function SystemHealth() {
     try {
       setLoading(true);
       setError(null);
-      const data = await healthApi.getCheckers();
-      setHealth(data);
+      const [healthData, wrData] = await Promise.allSettled([
+        healthApi.getCheckers(),
+        healthApi.getWinRates(),
+      ]);
+      if (healthData.status === 'fulfilled') setHealth(healthData.value as HealthSummary);
+      if (wrData.status === 'fulfilled') setWinRates(wrData.value as WinRatesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load system health');
       console.error('Error loading system health:', err);
@@ -156,6 +173,26 @@ export function SystemHealth() {
           <div className="text-lg font-semibold">{health.not_applicable}</div>
         </div>
       </div>
+
+      {/* DP Learning Stats (from /health/win-rates) */}
+      {winRates?.dp_learning_stats && (
+        <div className="mb-4 p-3 rounded-lg border border-accent-green/30 bg-accent-green/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🔒</span>
+              <span className="text-sm font-semibold text-text-primary">Dark Pool Intelligence</span>
+            </div>
+            <span className="text-lg font-bold text-accent-green">
+              {winRates.dp_learning_stats.win_rate}% WR
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-2 text-xs text-text-secondary">
+            <div>{winRates.dp_learning_stats.total_trades} trades</div>
+            <div className="text-accent-green">{winRates.dp_learning_stats.bounces} bounces</div>
+            <div className="text-accent-red">{winRates.dp_learning_stats.breaks} breaks</div>
+          </div>
+        </div>
+      )}
 
       {/* Checker Grid */}
       <div className="space-y-2 max-h-96 overflow-y-auto">
