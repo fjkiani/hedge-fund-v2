@@ -7,30 +7,56 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1';
 // Monitor endpoints live on root (BaseHTTPServer), not under /api/v1
 const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || API_URL.replace('/api/v1', '');
 
+const DEFAULT_TIMEOUT_MS = 10_000; // 10s — fail fast, don't hang
+
+function withTimeout(ms: number = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timer),
+  };
+}
+
 export const api = {
   baseURL: API_URL,
   wsURL: WS_URL,
 
-  async get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_URL}${endpoint}`);
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
+  async get<T>(endpoint: string, timeoutMs?: number): Promise<T> {
+    const { signal, clear } = withTimeout(timeoutMs);
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, { signal });
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error(`Request timed out: ${endpoint}`);
+      throw e;
+    } finally {
+      clear();
     }
-    return response.json();
   },
 
-  async post<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
+  async post<T>(endpoint: string, data: any, timeoutMs?: number): Promise<T> {
+    const { signal, clear } = withTimeout(timeoutMs);
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        signal,
+      });
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error(`Request timed out: ${endpoint}`);
+      throw e;
+    } finally {
+      clear();
     }
-    return response.json();
   },
 };
 
@@ -50,15 +76,17 @@ export const signalsApi = {
   getAll: () => api.get('/signals'),
   getMaster: () => api.get('/signals/master'),
   getById: (id: string) => api.get(`/signals/${id}`),
+  getForSymbol: (symbol: string, masterOnly: boolean = false) =>
+    api.get(`/signals?symbol=${symbol}&master_only=${masterOnly}`),
 };
 
 // Agents (Savage LLM)
 export const agentsApi = {
   analyze: (agentName: string, data?: any) =>
     api.post(`/agents/${agentName}/analyze`, data || {}),
-  getNarrative: () => api.get('/agents/narrative/current'),
+  getNarrative: () => api.get('/agents/narrative/current', 15_000), // narrative is slow — 15s
   askNarrative: (question: string) =>
-    api.post('/agents/narrative/ask', { question }),
+    api.post('/agents/narrative/ask', { question }, 15_000),
 };
 
 // DP Edge (89.8% WR Proven!)
@@ -70,6 +98,8 @@ export const dpApi = {
     return api.get(`/dp/interactions/recent?${params.toString()}`);
   },
   getDivergenceSignals: () => api.get('/signals/divergence'),
+  getPatterns: () => api.get('/dp/patterns'),
+  getPrediction: (symbol: string) => api.get(`/dp/prediction/${symbol}`),
 };
 
 // Dark Pool Data
@@ -96,6 +126,14 @@ export const healthApi = {
   getCheckers: () => api.get('/health/checkers'),
   getChecker: (name: string) => api.get(`/health/checkers/${name}`),
   getSummary: () => api.get('/health/summary'),
+  getHistory: (days: number = 7) => api.get(`/health/history?days=${days}`),
+};
+
+// Narrative Memory (cross-session intelligence)
+export const narrativeApi = {
+  getMemory: () => api.get('/narrative/memory'),
+  getCurrent: () => api.get('/agents/narrative/current', 15_000),
+  ask: (question: string) => api.post('/agents/narrative/ask', { question }, 15_000),
 };
 
 // WebSocket
@@ -119,16 +157,28 @@ export const killchainApi = {
   scan: () => api.get('/killchain/scan'),
   narrative: () => api.get('/killchain/narrative'),
   gex: (symbol: string) => api.get(`/killchain/gex/${symbol}`),
-  // 🐺 Triple Confluence Monitor — hits ROOT endpoints (BaseHTTPServer on Render)
+  // 🐺 Triple Confluence Monitor — hits ROOT endpoints (uses timeout)
   monitor: async () => {
-    const res = await fetch(`${MONITOR_URL}/kill-chain`);
-    if (!res.ok) throw new Error(`Kill chain: ${res.statusText}`);
-    return res.json();
+    const { signal, clear } = withTimeout();
+    try {
+      const res = await fetch(`${MONITOR_URL}/kill-chain`, { signal });
+      if (!res.ok) throw new Error(`Kill chain: ${res.statusText}`);
+      return res.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error('Kill chain request timed out');
+      throw e;
+    } finally { clear(); }
   },
   paperTrades: async () => {
-    const res = await fetch(`${MONITOR_URL}/paper-trades`);
-    if (!res.ok) throw new Error(`Paper trades: ${res.statusText}`);
-    return res.json();
+    const { signal, clear } = withTimeout();
+    try {
+      const res = await fetch(`${MONITOR_URL}/paper-trades`, { signal });
+      if (!res.ok) throw new Error(`Paper trades: ${res.statusText}`);
+      return res.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error('Paper trades request timed out');
+      throw e;
+    } finally { clear(); }
   },
 };
 
