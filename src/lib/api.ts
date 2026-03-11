@@ -127,11 +127,13 @@ export const healthApi = {
   getChecker: (name: string) => api.get(`/health/checkers/${name}`),
   getSummary: () => api.get('/health/summary'),
   getHistory: (days: number = 7) => api.get(`/health/history?days=${days}`),
+  getWinRates: () => api.get('/health/win-rates'),
 };
 
 // Narrative Memory (cross-session intelligence)
 export const narrativeApi = {
   getMemory: () => api.get('/narrative/memory'),
+  getPreviousSession: () => api.get('/narrative/previous-session'),
   getCurrent: () => api.get('/agents/narrative/current', 15_000),
   ask: (question: string) => api.post('/agents/narrative/ask', { question }, 15_000),
 };
