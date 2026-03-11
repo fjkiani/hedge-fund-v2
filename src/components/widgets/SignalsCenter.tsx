@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { signalsApi, dpApi } from '../../lib/api';
+import { DPPredictionBadge } from './DPPredictionBadge';
 
 interface Signal {
   id: string;
@@ -55,12 +56,12 @@ export function SignalsCenter() {
       setError(null);
 
       const [allSignals, masterOnly] = await Promise.all([
-        signalsApi.getAll(),
-        signalsApi.getMaster()
+        signalsApi.getAll() as Promise<SignalResponse>,
+        signalsApi.getMaster() as Promise<SignalResponse>
       ]);
 
-      setSignals(allSignals.signals || []);
-      setMasterSignals(masterOnly.signals || []);
+      setSignals(allSignals?.signals || []);
+      setMasterSignals(masterOnly?.signals || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load signals');
       console.error('Error loading signals:', err);
@@ -71,11 +72,11 @@ export function SignalsCenter() {
 
   const checkDpConfluence = async () => {
     try {
-      const divergenceSignals = await dpApi.getDivergenceSignals();
-      const confluenceSymbols = new Set(
-        divergenceSignals.signals
+      const divergenceSignals = await dpApi.getDivergenceSignals() as { signals: any[] };
+      const confluenceSymbols = new Set<string>(
+        (divergenceSignals?.signals || [])
           .filter((s: any) => s.signal_type === 'DP_CONFLUENCE')
-          .map((s: any) => s.symbol)
+          .map((s: any) => s.symbol as string)
       );
       setDpConfluence(confluenceSymbols);
     } catch (err) {
@@ -117,10 +118,10 @@ export function SignalsCenter() {
     return 'neutral';
   };
 
-  const filteredSignals = filter === 'all' 
-    ? signals 
-    : filter === 'master' 
-      ? masterSignals 
+  const filteredSignals = filter === 'all'
+    ? signals
+    : filter === 'master'
+      ? masterSignals
       : signals.filter(s => s.confidence >= 60 && s.confidence < 75);
 
   if (loading && signals.length === 0) {
@@ -159,31 +160,28 @@ export function SignalsCenter() {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setFilter('all')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            filter === 'all'
-              ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-          }`}
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'all'
+            ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+            }`}
         >
           All
         </button>
         <button
           onClick={() => setFilter('master')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            filter === 'master'
-              ? 'bg-accent-gold/20 text-accent-gold border border-accent-gold/30'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-          }`}
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'master'
+            ? 'bg-accent-gold/20 text-accent-gold border border-accent-gold/30'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+            }`}
         >
           🎯 Master
         </button>
         <button
           onClick={() => setFilter('high')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            filter === 'high'
-              ? 'bg-accent-orange/20 text-accent-orange border border-accent-orange/30'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-          }`}
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'high'
+            ? 'bg-accent-orange/20 text-accent-orange border border-accent-orange/30'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+            }`}
         >
           ⚡ High
         </button>
@@ -199,7 +197,7 @@ export function SignalsCenter() {
           {filteredSignals.map((signal) => {
             const tier = getSignalTier(signal.confidence, signal.is_master);
             const hasConfluence = dpConfluence.has(signal.symbol);
-            
+
             return (
               <div
                 key={signal.id}
@@ -259,6 +257,12 @@ export function SignalsCenter() {
                 {signal.warnings && signal.warnings.length > 0 && (
                   <div className="text-xs text-accent-orange mt-1">
                     ⚠️ {signal.warnings[0]}
+                  </div>
+                )}
+
+                {hasConfluence && (
+                  <div className="mt-2">
+                    <DPPredictionBadge symbol={signal.symbol} compact />
                   </div>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import { marketApi } from '../../lib/api';
+import { marketApi, narrativeApi } from '../../lib/api';
 
 interface MarketContext {
   date: string;
@@ -23,12 +23,12 @@ interface MarketContext {
 
 export function MarketRegime() {
   const [context, setContext] = useState<MarketContext | null>(null);
+  const [prevRegime, setPrevRegime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadContext();
-    // Refresh every 5 minutes
     const interval = setInterval(loadContext, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -37,11 +37,19 @@ export function MarketRegime() {
     try {
       setLoading(true);
       setError(null);
-      const data = await marketApi.getContext();
-      setContext(data);
+      const [ctxRes, prevRes] = await Promise.allSettled([
+        marketApi.getContext(),
+        narrativeApi.getPreviousSession(),
+      ]);
+      if (ctxRes.status === 'fulfilled') setContext(ctxRes.value as MarketContext);
+      if (prevRes.status === 'fulfilled') {
+        const prev = prevRes.value as any;
+        if (prev?.has_data && prev?.market_regime?.regime) {
+          setPrevRegime(prev.market_regime.regime);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load market context');
-      console.error('Error loading market context:', err);
     } finally {
       setLoading(false);
     }
@@ -133,24 +141,33 @@ export function MarketRegime() {
         <div className="text-text-secondary text-sm">
           Trend Strength: {context.trend_strength.toFixed(0)}%
         </div>
-        
+
         {/* Trend Strength Gauge */}
         <div className="mt-3 h-2 bg-bg-tertiary rounded-full overflow-hidden">
           <div
-            className={`h-full ${
-              context.direction === 'UP' ? 'bg-accent-green' : 
-              context.direction === 'DOWN' ? 'bg-accent-red' : 
-              'bg-accent-orange'
-            }`}
+            className={`h-full ${context.direction === 'UP' ? 'bg-accent-green' :
+                context.direction === 'DOWN' ? 'bg-accent-red' :
+                  'bg-accent-orange'
+              }`}
             style={{ width: `${context.trend_strength}%` }}
           />
         </div>
       </div>
 
-      {/* Regime Badge */}
+      {/* Regime Badge with Yesterday Comparison */}
       <div className={`mb-4 p-3 rounded-lg border ${getRegimeColor(context.regime)} text-center`}>
         <div className="text-sm text-text-muted mb-1">Current Regime</div>
         <div className="text-lg font-semibold text-text-primary">{context.regime}</div>
+        {prevRegime && prevRegime !== context.regime && (
+          <div className="text-[10px] text-text-muted mt-1">
+            Yesterday: <span className="font-mono">{prevRegime}</span> → <span className="font-semibold text-accent-orange">{context.regime}</span>
+          </div>
+        )}
+        {prevRegime && prevRegime === context.regime && (
+          <div className="text-[10px] text-accent-green mt-1">
+            ✅ Regime unchanged from yesterday
+          </div>
+        )}
       </div>
 
       {/* Price Action */}
