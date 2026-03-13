@@ -11,6 +11,7 @@ const NAV_ITEMS = [
     { path: '/feds', label: 'The Feds', icon: '🏦' },
     { path: '/politicians', label: 'Politicians', icon: '🏛️' },
     { path: '/exploit', label: 'Exploit', icon: '🐺' },
+    { path: '/axlfi', label: 'AXLFI Intel', icon: '🛰️' },
 ];
 
 export function NavBar() {

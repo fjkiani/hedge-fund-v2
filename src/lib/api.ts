@@ -239,3 +239,18 @@ export const optionsApi = {
     api.get(`/options/${symbol}/flow?limit=${limit}`),
   unusual: (symbol: string) => api.get(`/options/${symbol}/unusual`),
 };
+
+// AXLFI Intelligence (Dark Pool + Option Walls + Signals + Clusters)
+export const axlfiApi = {
+  dashboard:     ()                    => api.get('/axlfi/dashboard', 15_000),
+  signals:       ()                    => api.get('/axlfi/signals'),
+  regime:        ()                    => api.get('/axlfi/regime'),
+  movers:        ()                    => api.get('/axlfi/movers'),
+  optionWalls:   (sym: string)         => api.get(`/axlfi/option-walls/${sym}`),
+  wallsToday:    (sym: string)         => api.get(`/axlfi/option-walls/${sym}/today`),
+  snapshot:      ()                    => api.get('/axlfi/snapshot'),
+  clusters:      (u: string = 'sp500') => api.get(`/axlfi/clusters?universe=${u}`),
+  info:          (sym: string)         => api.get(`/axlfi/info/${sym}`),
+  detail:        (sym: string, w = 30) => api.get(`/axlfi/detail/${sym}?window=${w}`),
+  earningsIntel: (tickers: string[])   => api.get(`/axlfi/earnings-intel?tickers=${tickers.join(',')}`),
+};

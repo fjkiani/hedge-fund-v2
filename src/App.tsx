@@ -7,6 +7,7 @@ import { Politicians } from './pages/Politicians';
 import { Exploit } from './pages/Exploit';
 import { Signals } from './pages/Signals';
 import { DarkPool } from './pages/DarkPool';
+import { AXLFIIntel } from './pages/AXLFIIntel';
 import './index.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         <Route path="/politicians" element={<Politicians />} />
         <Route path="/exploit" element={<Exploit />} />
         <Route path="/darkpool" element={<DarkPool />} />
+        <Route path="/axlfi" element={<AXLFIIntel />} />
       </Routes>
     </BrowserRouter>
   );
