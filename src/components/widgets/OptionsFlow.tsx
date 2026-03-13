@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { optionsApi, createWebSocket } from '../../lib/api';
 
 interface OptionsFlowProps {
   symbol?: string;
@@ -79,9 +79,7 @@ export function OptionsFlow({
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`/api/v1/options/${symbol}/flow?limit=10`);
-      if (!res.ok) throw new Error('Failed to fetch options flow data');
-      const data = await res.json();
+      const data = await optionsApi.flow(symbol, 10) as OptionsFlowData;
       setFlowData(data);
 
     } catch (err) {
@@ -104,8 +102,7 @@ export function OptionsFlow({
   useEffect(() => {
     // WebSocket connection for real-time updates
     if (autoRefresh) {
-      const wsUrl = `ws://localhost:8000/ws/options/${symbol}`;
-      wsRef.current = new WebSocket(wsUrl);
+      wsRef.current = createWebSocket(`options/${symbol}`);
 
       wsRef.current.onopen = () => {
         setWsConnected(true);
@@ -237,31 +234,28 @@ export function OptionsFlow({
         <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTab('most_active')}
-            className={`px-4 py-2 text-sm font-medium ${
-              activeTab === 'most_active'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`px-4 py-2 text-sm font-medium ${activeTab === 'most_active'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Most Active ({flowData.most_active.length})
           </button>
           <button
             onClick={() => setActiveTab('unusual')}
-            className={`px-4 py-2 text-sm font-medium ${
-              activeTab === 'unusual'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`px-4 py-2 text-sm font-medium ${activeTab === 'unusual'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Unusual ({flowData.unusual_activity.length})
           </button>
           <button
             onClick={() => setActiveTab('zones')}
-            className={`px-4 py-2 text-sm font-medium ${
-              activeTab === 'zones'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`px-4 py-2 text-sm font-medium ${activeTab === 'zones'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Accumulation Zones
           </button>

@@ -3,57 +3,37 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { signalsApi, dpApi } from '../../lib/api';
 import { DPPredictionBadge } from './DPPredictionBadge';
-
-interface Signal {
-  id: string;
-  symbol: string;
-  type: string;
-  action: string;
-  confidence: number;
-  entry_price: number;
-  stop_price: number;
-  target_price: number;
-  risk_reward: number;
-  reasoning: string[];
-  warnings: string[];
-  timestamp: string;
-  source: string;
-  is_master: boolean;
-  position_size_pct?: number;
-  position_size_dollars?: number;
-}
+import { SignalSlug, type SignalData } from '../ui/SignalSlug';
 
 interface SignalResponse {
-  signals: Signal[];
+  signals: SignalData[];
   count: number;
   master_count: number;
   timestamp: string;
 }
 
 export function SignalsCenter() {
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [masterSignals, setMasterSignals] = useState<Signal[]>([]);
+  const [signals, setSignals] = useState<SignalData[]>([]);
+  const [masterSignals, setMasterSignals] = useState<SignalData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'master' | 'high'>('all');
   const [dpConfluence, setDpConfluence] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSignals();
-    // Refresh every 60 seconds (signals are rare events, not tick data)
     const interval = setInterval(loadSignals, 60_000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    // Check which signals have DP confluence
     checkDpConfluence();
   }, [signals]);
 
   const loadSignals = async () => {
     try {
       setLoading(true);
-
       const [allRes, masterRes] = await Promise.allSettled([
         signalsApi.getAll() as Promise<SignalResponse>,
         signalsApi.getMaster() as Promise<SignalResponse>
@@ -61,7 +41,6 @@ export function SignalsCenter() {
 
       if (allRes.status === 'fulfilled') setSignals(allRes.value?.signals || []);
       if (masterRes.status === 'fulfilled') setMasterSignals(masterRes.value?.signals || []);
-      // Don't set error — empty signals is normal, timeouts are non-critical
       setError(null);
     } catch {
       // Silently fail — signals widget is informational, not critical
@@ -80,42 +59,32 @@ export function SignalsCenter() {
       );
       setDpConfluence(confluenceSymbols);
     } catch {
-      // Non-critical — DP confluence badge is a nice-to-have overlay
+      // Non-critical
     }
   };
 
-  const getSignalTier = (confidence: number, isMaster: boolean): 'MASTER' | 'HIGH' | 'WATCH' => {
-    if (isMaster || confidence >= 75) return 'MASTER';
-    if (confidence >= 60) return 'HIGH';
-    return 'WATCH';
+  const handleShowOnChart = (symbol: string, levels: { entry: number; target: number; stop: number }) => {
+    // Navigate to dashboard with signal overlay params
+    const params = new URLSearchParams({
+      symbol,
+      signal_entry: levels.entry.toString(),
+      signal_target: levels.target.toString(),
+      signal_stop: levels.stop.toString(),
+    });
+    window.location.href = `/?${params.toString()}`;
   };
 
-  const getTierColor = (tier: string): string => {
-    switch (tier) {
-      case 'MASTER':
-        return 'border-accent-gold/50 bg-accent-gold/10';
-      case 'HIGH':
-        return 'border-accent-orange/50 bg-accent-orange/10';
-      default:
-        return 'border-accent-blue/50 bg-accent-blue/10';
+  const handleTakeTrade = async (signal: SignalData) => {
+    try {
+      const result = await signalsApi.takeTrade(signal.id) as any;
+      if (result?.status === 'already_tracked') {
+        alert(`Already tracking ${signal.symbol} — ${result.outcome}`);
+      } else {
+        alert(`📊 Now tracking ${signal.action} ${signal.symbol} @ $${signal.entry_price.toFixed(2)}`);
+      }
+    } catch {
+      alert('Failed to register trade — check backend connection');
     }
-  };
-
-  const getTierBadge = (tier: string): string => {
-    switch (tier) {
-      case 'MASTER':
-        return '🎯';
-      case 'HIGH':
-        return '⚡';
-      default:
-        return '📊';
-    }
-  };
-
-  const getActionBadge = (action: string): 'bullish' | 'bearish' | 'neutral' => {
-    if (action === 'LONG' || action === 'BUY') return 'bullish';
-    if (action === 'SHORT' || action === 'SELL') return 'bearish';
-    return 'neutral';
   };
 
   const filteredSignals = filter === 'all'
@@ -128,9 +97,9 @@ export function SignalsCenter() {
     return (
       <Card>
         <div className="card-header">
-          <h2 className="card-title">Active Signals</h2>
+          <h2 className="card-title">Live Trading Signals</h2>
         </div>
-        <div className="text-text-secondary text-center py-8">Loading...</div>
+        <div className="text-text-secondary text-center py-8">Loading signals...</div>
       </Card>
     );
   }
@@ -139,7 +108,7 @@ export function SignalsCenter() {
     return (
       <Card>
         <div className="card-header">
-          <h2 className="card-title">Active Signals</h2>
+          <h2 className="card-title">Live Trading Signals</h2>
         </div>
         <div className="text-accent-red text-center py-8">Error: {error}</div>
       </Card>
@@ -149,7 +118,9 @@ export function SignalsCenter() {
   return (
     <Card>
       <div className="card-header">
-        <h2 className="card-title">Active Signals</h2>
+        <h2 className="card-title flex items-center gap-2">
+          <span className="live-indicator !w-2 !h-2 !mr-0"></span>LIVE TRADING SIGNALS
+        </h2>
         <div className="flex items-center gap-2">
           <Badge variant="neutral">{signals.length} Total</Badge>
           <Badge variant="bullish">{masterSignals.length} Master</Badge>
@@ -157,129 +128,73 @@ export function SignalsCenter() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-6">
         <button
           onClick={() => setFilter('all')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'all'
-            ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30'
-            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+          className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all ${filter === 'all'
+            ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/40 shadow-[0_0_10px_rgba(0,212,255,0.2)]'
+            : 'bg-bg-tertiary text-text-muted hover:text-white border border-white/5 hover:border-white/20'
             }`}
         >
-          All
+          ALL SIGNALS
         </button>
         <button
           onClick={() => setFilter('master')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'master'
-            ? 'bg-accent-gold/20 text-accent-gold border border-accent-gold/30'
-            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+          className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all flex items-center gap-1 ${filter === 'master'
+            ? 'bg-accent-gold/20 text-accent-gold border border-accent-gold/40 shadow-[0_0_10px_rgba(255,215,0,0.2)]'
+            : 'bg-bg-tertiary text-text-muted hover:text-white border border-white/5 hover:border-white/20'
             }`}
         >
-          🎯 Master
+          <span>🎯</span> MASTER
         </button>
         <button
           onClick={() => setFilter('high')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === 'high'
-            ? 'bg-accent-orange/20 text-accent-orange border border-accent-orange/30'
-            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+          className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all flex items-center gap-1 ${filter === 'high'
+            ? 'bg-accent-orange/20 text-accent-orange border border-accent-orange/40 shadow-[0_0_10px_rgba(255,165,0,0.2)]'
+            : 'bg-bg-tertiary text-text-muted hover:text-white border border-white/5 hover:border-white/20'
             }`}
         >
-          ⚡ High
+          <span>⚡</span> HIGH CONVICTION
         </button>
       </div>
 
       {/* Signals List */}
       {filteredSignals.length === 0 ? (
-        <div className="text-text-muted text-sm text-center py-8">
-          No {filter === 'all' ? '' : filter} signals active
+        <div className="text-text-muted text-sm text-center py-12 bg-black/20 rounded-xl border border-white/5">
+          No {filter === 'all' ? '' : filter} signals active in the current regime.
         </div>
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {filteredSignals.map((signal) => {
-            const tier = getSignalTier(signal.confidence, signal.is_master);
-            const hasConfluence = dpConfluence.has(signal.symbol);
-
-            return (
-              <div
-                key={signal.id}
-                className={`p-4 rounded-lg border ${getTierColor(tier)}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xl">{getTierBadge(tier)}</span>
-                    <span className="font-semibold text-text-primary">{signal.symbol}</span>
-                    <Badge variant={getActionBadge(signal.action)}>
-                      {signal.action}
-                    </Badge>
-                    <Badge variant="neutral">{signal.confidence.toFixed(0)}%</Badge>
-                    <Badge variant="neutral">{signal.type}</Badge>
-                    {hasConfluence && (
-                      <Badge variant="bullish" className="bg-accent-gold/20 text-accent-gold border-accent-gold/30">
-                        🎯 DP Confluence
-                      </Badge>
-                    )}
-                  </div>
+        <div className="space-y-3 max-h-[700px] overflow-y-auto sidebar-scroll pr-2">
+          {filteredSignals.map((signal) => (
+            <div key={signal.id} className="relative">
+              <SignalSlug
+                signal={signal}
+                isExpanded={expandedId === signal.id}
+                onToggle={() => setExpandedId(expandedId === signal.id ? null : signal.id)}
+                onShowOnChart={handleShowOnChart}
+                onTakeTrade={handleTakeTrade}
+              />
+              
+              {/* DP Confluence Overlay */}
+              {dpConfluence.has(signal.symbol) && !expandedId && (
+                <div className="absolute top-3 right-24">
+                  <DPPredictionBadge symbol={signal.symbol} compact />
                 </div>
-
-                <div className="grid grid-cols-3 gap-2 text-sm mb-2">
-                  <div>
-                    <span className="text-text-muted">Entry:</span>{' '}
-                    <span className="text-text-primary font-semibold">
-                      ${signal.entry_price.toFixed(2)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-muted">Stop:</span>{' '}
-                    <span className="text-accent-red">
-                      ${signal.stop_price.toFixed(2)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-muted">Target:</span>{' '}
-                    <span className="text-accent-green">
-                      ${signal.target_price.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-xs text-text-secondary mb-1">
-                  R/R: {signal.risk_reward.toFixed(2)}:1
-                  {signal.position_size_pct && (
-                    <span className="ml-2">Size: {signal.position_size_pct.toFixed(1)}%</span>
-                  )}
-                </div>
-
-                {signal.reasoning && signal.reasoning.length > 0 && (
-                  <div className="text-xs text-text-muted mt-2">
-                    {signal.reasoning[0]}
-                  </div>
-                )}
-
-                {signal.warnings && signal.warnings.length > 0 && (
-                  <div className="text-xs text-accent-orange mt-1">
-                    ⚠️ {signal.warnings[0]}
-                  </div>
-                )}
-
-                {hasConfluence && (
-                  <div className="mt-2">
-                    <DPPredictionBadge symbol={signal.symbol} compact />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="card-footer">
-        <span className="text-text-muted">
-          {masterSignals.length} Master Signals | Updated {new Date().toLocaleTimeString()}
+      <div className="card-footer mt-4 pt-4 border-t border-border-subtle flex justify-between items-center">
+        <span className="text-xs font-mono text-text-muted">
+          {masterSignals.length} MASTER / {signals.length} TOTAL | UPDATED {new Date().toLocaleTimeString()}
         </span>
         <button
           onClick={loadSignals}
-          className="text-accent-blue hover:text-accent-blue/80 text-sm"
+          className="text-accent-blue hover:text-accent-blue/80 text-xs font-bold tracking-wider uppercase"
         >
-          Refresh
+          [ REFRESH ]
         </button>
       </div>
     </Card>

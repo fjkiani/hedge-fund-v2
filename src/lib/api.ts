@@ -78,6 +78,12 @@ export const signalsApi = {
   getById: (id: string) => api.get(`/signals/${id}`),
   getForSymbol: (symbol: string, masterOnly: boolean = false) =>
     api.get(`/signals?symbol=${symbol}&master_only=${masterOnly}`),
+  getHistory: (limit: number = 100) => api.get(`/signals/history?limit=${limit}`),
+  getScorecard: () => api.get('/signals/scorecard', 30_000),
+  getMorningBrief: () => api.get('/signals/morning-brief', 30_000),
+  getOutcomeScorecard: () => api.get('/signals/outcomes/scorecard'),
+  checkOutcomes: () => api.post('/signals/outcomes/check', {}),
+  takeTrade: (signalId: string) => api.post(`/signals/take-trade?signal_id=${signalId}`, {}),
 };
 
 // Agents (Savage LLM)

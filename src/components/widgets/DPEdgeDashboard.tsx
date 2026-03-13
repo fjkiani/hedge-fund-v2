@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { dpApi } from '../../lib/api';
+import { DPPatternCard } from './DPPatternCard';
 
 interface DPEdgeStats {
   win_rate: number;
@@ -29,15 +30,27 @@ interface DPDivergenceSignal {
   timestamp: string;
 }
 
+interface DPPrediction {
+  symbol: string;
+  bounce_probability: number | null;
+  confidence: number;
+  action: string;
+  reasoning: string;
+  recent_interactions: number;
+  recent_bounces?: number;
+  recent_breaks?: number;
+}
+
 export function DPEdgeDashboard() {
   const [stats, setStats] = useState<DPEdgeStats | null>(null);
   const [signals, setSignals] = useState<DPDivergenceSignal[]>([]);
+  const [patterns, setPatterns] = useState<any[]>([]);
+  const [prediction, setPrediction] = useState<DPPrediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
-    // Refresh every 5 minutes
     const interval = setInterval(loadData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -47,23 +60,25 @@ export function DPEdgeDashboard() {
       setLoading(true);
       setError(null);
 
-      // Load stats and signals in parallel
-      const [statsData, signalsData] = await Promise.all([
+      const [statsRes, signalsRes, patternsRes, predictionRes] = await Promise.allSettled([
         dpApi.getEdgeStats(),
-        dpApi.getDivergenceSignals()
+        dpApi.getDivergenceSignals(),
+        dpApi.getPatterns(),
+        dpApi.getPrediction('SPY'),
       ]);
 
-      setStats(statsData);
-      setSignals(signalsData.signals || []);
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value as DPEdgeStats);
+      if (signalsRes.status === 'fulfilled') setSignals((signalsRes.value as any).signals || []);
+      if (patternsRes.status === 'fulfilled') setPatterns((patternsRes.value as any).patterns || []);
+      if (predictionRes.status === 'fulfilled') setPrediction(predictionRes.value as DPPrediction);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load DP edge data');
-      console.error('Error loading DP edge data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getSignalTier = (confidence: number, signalType: string): 'MASTER' | 'HIGH' | 'WATCH' => {
+  const getSignalTier = (confidence: number): 'MASTER' | 'HIGH' | 'WATCH' => {
     if (confidence >= 75) return 'MASTER';
     if (confidence >= 60) return 'HIGH';
     return 'WATCH';
@@ -71,23 +86,17 @@ export function DPEdgeDashboard() {
 
   const getTierColor = (tier: string): string => {
     switch (tier) {
-      case 'MASTER':
-        return 'border-accent-gold/50 bg-accent-gold/10';
-      case 'HIGH':
-        return 'border-accent-orange/50 bg-accent-orange/10';
-      default:
-        return 'border-accent-blue/50 bg-accent-blue/10';
+      case 'MASTER': return 'border-accent-gold/50 bg-accent-gold/10';
+      case 'HIGH': return 'border-accent-orange/50 bg-accent-orange/10';
+      default: return 'border-accent-blue/50 bg-accent-blue/10';
     }
   };
 
   const getTierBadge = (tier: string): string => {
     switch (tier) {
-      case 'MASTER':
-        return '🎯';
-      case 'HIGH':
-        return '⚡';
-      default:
-        return '📊';
+      case 'MASTER': return '🎯';
+      case 'HIGH': return '⚡';
+      default: return '📊';
     }
   };
 
@@ -120,7 +129,7 @@ export function DPEdgeDashboard() {
         <Badge variant="bullish">PROVEN EDGE</Badge>
       </div>
 
-      {/* Win Rate Display - BIG AND PROUD */}
+      {/* Win Rate Display */}
       {stats && (
         <div className="mb-6">
           <div className="text-center mb-4">
@@ -175,6 +184,37 @@ export function DPEdgeDashboard() {
               <span>Breaks (Losses)</span>
             </div>
           </div>
+
+          {/* DP Prediction Badge */}
+          {prediction && prediction.bounce_probability !== null && (
+            <div className={`flex items-center justify-between p-3 rounded-lg border ${prediction.action === 'BUY' ? 'border-accent-green/30 bg-accent-green/5' :
+                prediction.action === 'SELL' ? 'border-accent-red/30 bg-accent-red/5' :
+                  'border-accent-blue/30 bg-accent-blue/5'
+              }`}>
+              <div className="flex items-center gap-3">
+                <span className="text-xl">
+                  {prediction.action === 'BUY' ? '🟢' : prediction.action === 'SELL' ? '🔴' : '🟡'}
+                </span>
+                <div>
+                  <div className="text-sm font-semibold text-text-primary">
+                    {prediction.symbol} — {prediction.action}
+                  </div>
+                  <div className="text-xs text-text-muted">
+                    {prediction.reasoning.slice(0, 80)}...
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold" style={{
+                  color: prediction.bounce_probability >= 75 ? '#00ff88' :
+                    prediction.bounce_probability >= 50 ? '#ffd700' : '#ff3366'
+                }}>
+                  {prediction.bounce_probability}%
+                </div>
+                <div className="text-[10px] text-text-muted">bounce prob</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -192,12 +232,9 @@ export function DPEdgeDashboard() {
         ) : (
           <div className="space-y-3">
             {signals.map((signal, idx) => {
-              const tier = getSignalTier(signal.confidence, signal.signal_type);
+              const tier = getSignalTier(signal.confidence);
               return (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-lg border ${getTierColor(tier)}`}
-                >
+                <div key={idx} className={`p-4 rounded-lg border ${getTierColor(tier)}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{getTierBadge(tier)}</span>
@@ -232,9 +269,7 @@ export function DPEdgeDashboard() {
                     </div>
                   </div>
 
-                  <div className="text-xs text-text-muted">
-                    {signal.reasoning}
-                  </div>
+                  <div className="text-xs text-text-muted">{signal.reasoning}</div>
 
                   {signal.options_bias && (
                     <div className="mt-2 text-xs">
@@ -257,7 +292,6 @@ export function DPEdgeDashboard() {
             {['DP_CONFLUENCE', 'OPTIONS_DIVERGENCE'].map((type) => {
               const typeSignals = signals.filter((s) => s.signal_type === type);
               if (typeSignals.length === 0) return null;
-
               return (
                 <div key={type} className="flex items-center justify-between text-xs">
                   <span className="text-text-secondary">
@@ -273,6 +307,11 @@ export function DPEdgeDashboard() {
         </div>
       )}
 
+      {/* Learned Patterns Table */}
+      <div className="mb-4">
+        <DPPatternCard patterns={patterns} loading={loading && patterns.length === 0} />
+      </div>
+
       <div className="card-footer">
         <span className="text-text-muted">
           Updated {stats ? new Date().toLocaleTimeString() : 'Never'}
@@ -287,4 +326,3 @@ export function DPEdgeDashboard() {
     </Card>
   );
 }
-

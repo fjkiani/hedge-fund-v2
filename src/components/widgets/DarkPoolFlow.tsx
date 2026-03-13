@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { darkpoolApi } from '../../lib/api';
+import { darkpoolApi, createWebSocket } from '../../lib/api';
 
 interface DPLevel {
   price: number;
@@ -29,9 +29,21 @@ interface DPSummary {
   total_volume: number;
   dp_percent: number;
   buying_pressure: number;
+  dp_position_dollars: number | null;
+  net_short_dollars: number | null;
+  short_volume_pct: number | null;
   nearest_support: DPLevel | null;
   nearest_resistance: DPLevel | null;
   battlegrounds: DPLevel[];
+}
+
+interface DPTopPosition {
+  ticker: string;
+  dp_position_dollars: number;
+  dp_position_shares: number;
+  short_volume_pct: number;
+  net_short_volume: number | null;
+  date: string;
 }
 
 interface DarkPoolFlowProps {
@@ -53,6 +65,8 @@ export function DarkPoolFlow({
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [narrative, setNarrative] = useState<string | null>(null);
+  const [topPositions, setTopPositions] = useState<DPTopPosition[]>([]);
 
   const fetchData = async () => {
     try {
@@ -60,16 +74,20 @@ export function DarkPoolFlow({
       setError(null);
 
       // Fetch all DP data in parallel with explicit type casting
-      const [levelsData, summaryData, printsData] = await Promise.all([
+      const [levelsData, summaryData, printsData, narrativeData, topPosData] = await Promise.all([
         darkpoolApi.getLevels(symbol) as Promise<any>,
         darkpoolApi.getSummary(symbol) as Promise<any>,
-        darkpoolApi.getPrints(symbol, 10) as Promise<any>
+        darkpoolApi.getPrints(symbol, 10) as Promise<any>,
+        darkpoolApi.getNarrative().catch(() => ({ narrative: null })),
+        darkpoolApi.getTopPositions(10).catch(() => ({ positions: [] })),
       ]);
 
       setLevels(levelsData.levels || []);
       setCurrentPrice(levelsData.current_price || null);
       setSummary(summaryData.summary || null);
       setPrints(printsData.prints || []);
+      setNarrative((narrativeData as any)?.narrative || null);
+      setTopPositions((topPosData as any)?.positions || []);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch dark pool data');
@@ -91,8 +109,7 @@ export function DarkPoolFlow({
   useEffect(() => {
     // WebSocket connection for real-time updates
     if (autoRefresh) {
-      const wsUrl = `ws://localhost:8000/ws/darkpool/${symbol}`;
-      wsRef.current = new WebSocket(wsUrl);
+      wsRef.current = createWebSocket(`darkpool/${symbol}`);
 
       wsRef.current.onopen = () => {
         setWsConnected(true);
@@ -353,6 +370,34 @@ export function DarkPoolFlow({
             )}
           </div>
         </div>
+
+        {/* DP Narrative */}
+        {narrative && (
+          <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="text-xs font-semibold text-gray-500 mb-1">Dark Pool Intelligence</div>
+            <div className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              🏴 {narrative}
+            </div>
+          </div>
+        )}
+
+        {/* Top Positions Table */}
+        {topPositions.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold mb-2">Top Dark Pool Positions</h3>
+            <div className="space-y-1">
+              {topPositions.slice(0, 5).map((pos, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+                  <span className="font-bold">{pos.ticker}</span>
+                  <span className="text-gray-500">${(pos.dp_position_dollars / 1e9).toFixed(1)}B</span>
+                  <span className={pos.short_volume_pct > 0.55 ? 'text-red-500' : pos.short_volume_pct < 0.45 ? 'text-green-500' : 'text-gray-400'}>
+                    {(pos.short_volume_pct * 100).toFixed(1)}% short
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   );

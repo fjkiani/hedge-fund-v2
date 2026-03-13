@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { squeezeApi, createWebSocket } from '../../lib/api';
 
 interface SqueezeCandidate {
   symbol: string;
@@ -43,7 +44,7 @@ interface SqueezeScannerProps {
 type SortField = 'score' | 'short_interest_pct' | 'borrow_fee_pct' | 'ftd_spike_ratio' | 'price_change_5d';
 type SortDirection = 'asc' | 'desc';
 
-export function SqueezeScanner({ 
+export function SqueezeScanner({
   minScore = 55,
   maxResults = 20,
   autoRefresh = true
@@ -67,34 +68,20 @@ export function SqueezeScanner({
   const fetchCandidates = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const params = new URLSearchParams({
-        min_score: filters.minScore.toString(),
-        max_results: maxResults.toString()
-      });
-      
-      const url = `${apiUrl}/api/v1/squeeze/scan?${params}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-      
-      const data: SqueezeScanResponse = await response.json();
-      
+      const data = await squeezeApi.scan(filters.minScore, maxResults) as SqueezeScanResponse;
+
       // Apply filters
-      let filtered = data.candidates.filter(c => 
+      let filtered = data.candidates.filter(c =>
         c.short_interest_pct >= filters.minSI &&
         c.borrow_fee_pct >= filters.minBorrowFee
       );
-      
+
       // Sort
       filtered.sort((a, b) => {
         let aVal: number, bVal: number;
-        
+
         switch (sortField) {
           case 'score':
             aVal = a.score;
@@ -119,19 +106,19 @@ export function SqueezeScanner({
           default:
             return 0;
         }
-        
+
         return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
       });
-      
+
       setCandidates(filtered);
-      
+
       // Fetch price data for sparklines
       for (const candidate of filtered.slice(0, 10)) {
         if (!priceData[candidate.symbol]) {
           fetchPriceData(candidate.symbol);
         }
       }
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch squeeze candidates');
       log.error('Error fetching squeeze candidates:', err);
@@ -163,24 +150,23 @@ export function SqueezeScanner({
   // Auto-refresh
   useEffect(() => {
     if (!autoRefresh) return;
-    
+
     const interval = setInterval(() => {
       fetchCandidates();
     }, 60000); // Every 60 seconds
-    
+
     return () => clearInterval(interval);
   }, [autoRefresh, filters, sortField, sortDirection]);
 
   // WebSocket for real-time updates
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-    const ws = new WebSocket(`${wsUrl}/api/v1/websocket/signals`);
-    
+    const ws = createWebSocket('signals');
+
     ws.onopen = () => {
       setWsConnected(true);
       log.info('✅ WebSocket connected for squeeze scanner');
     };
-    
+
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -192,24 +178,24 @@ export function SqueezeScanner({
         log.error('Error parsing WebSocket message:', err);
       }
     };
-    
+
     ws.onerror = (error) => {
       log.error('WebSocket error:', error);
       setWsConnected(false);
     };
-    
+
     ws.onclose = () => {
       setWsConnected(false);
       // Reconnect after 3 seconds
       setTimeout(() => {
         if (autoRefresh) {
-          wsRef.current = new WebSocket(`${wsUrl}/api/v1/websocket/signals`);
+          wsRef.current = createWebSocket('signals');
         }
       }, 3000);
     };
-    
+
     wsRef.current = ws;
-    
+
     return () => {
       ws.close();
     };
@@ -258,7 +244,7 @@ export function SqueezeScanner({
         <div className="p-8 text-center">
           <div className="text-accent-red mb-2">❌ Error</div>
           <div className="text-text-muted text-sm">{error}</div>
-          <button 
+          <button
             onClick={fetchCandidates}
             className="mt-4 px-4 py-2 bg-accent-blue/20 text-accent-blue rounded-lg hover:bg-accent-blue/30 transition-colors"
           >
@@ -358,7 +344,7 @@ export function SqueezeScanner({
               candidates.map((candidate) => {
                 const isExpanded = expandedSymbol === candidate.symbol;
                 const sparklineData = priceData[candidate.symbol] || [];
-                
+
                 return (
                   <tr
                     key={candidate.symbol}
@@ -421,7 +407,7 @@ export function SqueezeScanner({
           {(() => {
             const candidate = candidates.find(c => c.symbol === expandedSymbol);
             if (!candidate) return null;
-            
+
             return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -433,20 +419,20 @@ export function SqueezeScanner({
                     ✕
                   </button>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-xs text-text-muted mb-1">Entry/Stop/Target</div>
                     <div className="text-sm text-text-primary">
-                      Entry: ${candidate.entry_price.toFixed(2)} | 
-                      Stop: ${candidate.stop_price.toFixed(2)} | 
+                      Entry: ${candidate.entry_price.toFixed(2)} |
+                      Stop: ${candidate.stop_price.toFixed(2)} |
                       Target: ${candidate.target_price.toFixed(2)}
                     </div>
                     <div className="text-xs text-text-muted mt-1">
                       R/R: {candidate.risk_reward_ratio.toFixed(2)}:1
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="text-xs text-text-muted mb-1">Component Scores</div>
                     <div className="text-xs text-text-secondary space-y-1">
@@ -457,17 +443,17 @@ export function SqueezeScanner({
                     </div>
                   </div>
                 </div>
-                
+
                 {candidate.nearest_dp_support && (
                   <div>
                     <div className="text-xs text-text-muted mb-1">Dark Pool Levels</div>
                     <div className="text-sm text-text-secondary">
-                      Support: ${candidate.nearest_dp_support.toFixed(2)} | 
+                      Support: ${candidate.nearest_dp_support.toFixed(2)} |
                       Resistance: {candidate.nearest_dp_resistance ? `$${candidate.nearest_dp_resistance.toFixed(2)}` : 'N/A'}
                     </div>
                   </div>
                 )}
-                
+
                 {candidate.reasoning.length > 0 && (
                   <div>
                     <div className="text-xs text-text-muted mb-1">Reasoning</div>
@@ -478,7 +464,7 @@ export function SqueezeScanner({
                     </ul>
                   </div>
                 )}
-                
+
                 {candidate.warnings.length > 0 && (
                   <div>
                     <div className="text-xs text-accent-red mb-1">⚠️ Warnings</div>

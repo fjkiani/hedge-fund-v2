@@ -83,8 +83,28 @@ export function KillChainDashboard() {
 
     if (!data) return null;
 
-    const { current_state, history } = data;
-    const isArmed = current_state.triple_active;
+    const { history } = data;
+    const current_state = data.current_state || {
+        cot_specs_net: 0,
+        gex_vix_ratio: 0,
+        dvr_ratio: 0,
+        triple_active: false,
+        layers_active: 0,
+        layers_total: 3,
+        spy_price: 0,
+        pnl_percent: 0,
+        entry_price: 0,
+        timestamp: new Date().toISOString(),
+        type: 'CHECK' as const,
+    };
+    const isArmed = current_state.triple_active || false;
+    // Safe numeric accessors — API can return undefined fields
+    const cotNet = current_state.cot_specs_net ?? 0;
+    const gexRatio = current_state.gex_vix_ratio ?? 0;
+    const dvrRatio = current_state.dvr_ratio ?? 0;
+    const spyPrice = current_state.spy_price ?? 0;
+    const pnl = current_state.pnl_percent ?? 0;
+    const entryPrice = current_state.entry_price ?? 0;
 
     return (
         <Card className={`border-2 transition-colors duration-500 ${isArmed ? 'border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-border-default'}`}>
@@ -109,10 +129,10 @@ export function KillChainDashboard() {
                 <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 1: COT Divergence</span>
-                        <span className={current_state.cot_specs_net < 0 ? 'text-green-400' : 'text-text-muted'}>{current_state.cot_specs_net < 0 ? '✅' : '⚪'}</span>
+                        <span className={cotNet < 0 ? 'text-green-400' : 'text-text-muted'}>{cotNet < 0 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
-                        {(current_state.cot_specs_net / 1000).toFixed(0)}k <span className="text-xs text-text-secondary font-normal italic">Specs Net</span>
+                        {(cotNet / 1000).toFixed(0)}k <span className="text-xs text-text-secondary font-normal italic">Specs Net</span>
                     </div>
                     <div className="text-[10px] text-text-muted mt-1">Goal: Specs Net {'<'} 0 (Crowded Short)</div>
                 </div>
@@ -121,10 +141,10 @@ export function KillChainDashboard() {
                 <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 2: GEX Regime</span>
-                        <span className={current_state.gex_vix_ratio > 1 ? 'text-green-400' : 'text-text-muted'}>{current_state.gex_vix_ratio > 1 ? '✅' : '⚪'}</span>
+                        <span className={gexRatio > 1 ? 'text-green-400' : 'text-text-muted'}>{gexRatio > 1 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
-                        {current_state.gex_vix_ratio.toFixed(3)} <span className="text-xs text-text-secondary font-normal italic">VIX/VIX3M</span>
+                        {gexRatio.toFixed(3)} <span className="text-xs text-text-secondary font-normal italic">VIX/VIX3M</span>
                     </div>
                     <div className="text-[10px] text-text-muted mt-1">Goal: Ratio {'<'} 1.0 (Positive GEX/Contango)</div>
                     <div className="text-[8px] text-red-400 italic font-mono mt-0.5">*VIX/VIX3M reversed in code to match Zeta protocol</div>
@@ -134,10 +154,10 @@ export function KillChainDashboard() {
                 <div className="p-4 hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 3: Sell Volume (DVR)</span>
-                        <span className={current_state.dvr_ratio > 0.55 ? 'text-green-400' : 'text-text-muted'}>{current_state.dvr_ratio > 0.55 ? '✅' : '⚪'}</span>
+                        <span className={dvrRatio > 0.55 ? 'text-green-400' : 'text-text-muted'}>{dvrRatio > 0.55 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
-                        {(current_state.dvr_ratio * 100).toFixed(1)}% <span className="text-xs text-text-secondary font-normal italic">Down-Vol Ratio</span>
+                        {(dvrRatio * 100).toFixed(1)}% <span className="text-xs text-text-secondary font-normal italic">Down-Vol Ratio</span>
                     </div>
                     <div className="text-[10px] text-text-muted mt-1">Goal: DVR {'>'} 55% (Panic Selling)</div>
                 </div>
@@ -147,12 +167,12 @@ export function KillChainDashboard() {
             {isArmed && (
                 <div className="p-6 bg-green-500/5 flex flex-col items-center justify-center border-b border-green-500/20">
                     <div className="text-sm font-bold text-green-400 tracking-widest uppercase mb-1">ACTIVE WEAPON P&L</div>
-                    <div className={`text-5xl font-black tracking-tighter ${(current_state.pnl_percent || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {(current_state.pnl_percent || 0) >= 0 ? '+' : ''}{current_state.pnl_percent?.toFixed(2)}%
+                    <div className={`text-5xl font-black tracking-tighter ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
                     </div>
                     <div className="flex gap-4 mt-2 text-xs font-mono text-text-muted">
-                        <span>ENTRY: ${current_state.entry_price?.toFixed(2)}</span>
-                        <span>SPOT: ${current_state.spy_price?.toFixed(2)}</span>
+                        <span>ENTRY: ${entryPrice.toFixed(2)}</span>
+                        <span>SPOT: ${spyPrice.toFixed(2)}</span>
                     </div>
                 </div>
             )}
@@ -182,12 +202,12 @@ export function KillChainDashboard() {
                                     <tr key={idx} className={`${isAct ? 'bg-green-500/10 text-green-300' : isDeact ? 'bg-red-500/10 text-red-300' : 'text-text-muted hover:bg-bg-tertiary'}`}>
                                         <td className="p-2 whitespace-nowrap">{new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                         <td className="p-2 font-bold">{sig.type}</td>
-                                        <td className="p-2">${sig.spy_price.toFixed(2)}</td>
+                                        <td className="p-2">${(sig.spy_price ?? 0).toFixed(2)}</td>
                                         <td className="p-2">{sig.layers_active}/{sig.layers_total}</td>
                                         <td className="p-2">
                                             {isDeact ? (
-                                                <span className={`font-bold ${sig.pnl_percent! >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {sig.pnl_percent! >= 0 ? '+' : ''}{sig.pnl_percent?.toFixed(2)}%
+                                                <span className={`font-bold ${(sig.pnl_percent ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {(sig.pnl_percent ?? 0) >= 0 ? '+' : ''}{(sig.pnl_percent ?? 0).toFixed(2)}%
                                                 </span>
                                             ) : sig.triple_active ? '🔥 ARMED' : 'WAITING'}
                                         </td>

@@ -8,11 +8,19 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { gammaApi, createWebSocket } from '../../lib/api';
 
 interface GammaTrackerProps {
   symbol?: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
+}
+
+interface GammaWall {
+  strike: number;
+  gex: number;
+  open_interest: number;
+  signal: string;
 }
 
 interface GammaData {
@@ -22,9 +30,14 @@ interface GammaData {
   total_gex: number;
   max_pain: number | null;
   call_put_ratio: number;
-  gamma_by_strike: Record<string, number>;
+  gamma_walls: GammaWall[];
+  negative_zones: GammaWall[];
   current_price: number;
   distance_to_flip: number | null;
+  total_contracts: number;
+  total_calls: number;
+  total_puts: number;
+  source: string;
   timestamp: string;
 }
 
@@ -44,9 +57,7 @@ export function GammaTracker({
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`/api/v1/gamma/${symbol}`);
-      if (!res.ok) throw new Error('Failed to fetch gamma data');
-      const data = await res.json();
+      const data = await gammaApi.get(symbol) as GammaData;
       setGammaData(data);
 
     } catch (err) {
@@ -69,8 +80,8 @@ export function GammaTracker({
   useEffect(() => {
     // WebSocket connection for real-time updates
     if (autoRefresh) {
-      const wsUrl = `ws://localhost:8000/ws/gamma/${symbol}`;
-      wsRef.current = new WebSocket(wsUrl);
+      const wsUrl = `gamma/${symbol}`;
+      wsRef.current = createWebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
         setWsConnected(true);
@@ -121,14 +132,12 @@ export function GammaTracker({
     return gex.toFixed(0);
   };
 
-  // Prepare chart data (gamma by strike)
-  const chartData = gammaData?.gamma_by_strike
-    ? Object.entries(gammaData.gamma_by_strike)
-        .map(([strike, gex]) => ({
-          strike: parseFloat(strike),
-          gamma: gex
-        }))
-        .sort((a, b) => a.strike - b.strike)
+  // Prepare chart data from gamma_walls + negative_zones (not gamma_by_strike)
+  const chartData = gammaData
+    ? [
+      ...(gammaData.gamma_walls || []).map(w => ({ strike: w.strike, gamma: w.gex, type: 'wall' })),
+      ...(gammaData.negative_zones || []).map(z => ({ strike: z.strike, gamma: z.gex, type: 'negative' })),
+    ].sort((a, b) => a.strike - b.strike)
     : [];
 
   if (loading && !gammaData) {
@@ -168,7 +177,6 @@ export function GammaTracker({
   }
 
   const isPositiveGamma = gammaData.current_regime === 'POSITIVE';
-  const regimeColor = isPositiveGamma ? 'green' : 'red';
   const regimeBadgeVariant = isPositiveGamma ? 'bullish' : 'bearish';
 
   return (
@@ -239,6 +247,22 @@ export function GammaTracker({
           </div>
         </div>
 
+        {/* Contract Volume Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+            <div className="text-xs text-gray-500">Total Contracts</div>
+            <div className="text-sm font-bold">{(gammaData.total_contracts || 0).toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+            <div className="text-xs text-green-500">Calls</div>
+            <div className="text-sm font-bold text-green-600">{(gammaData.total_calls || 0).toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+            <div className="text-xs text-red-500">Puts</div>
+            <div className="text-sm font-bold text-red-600">{(gammaData.total_puts || 0).toLocaleString()}</div>
+          </div>
+        </div>
+
         {/* Current Price vs Key Levels */}
         {gammaData.current_price > 0 && (
           <div className="mb-6">
@@ -277,47 +301,47 @@ export function GammaTracker({
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="strike" 
+                <XAxis
+                  dataKey="strike"
                   type="number"
                   scale="linear"
                   domain={['dataMin', 'dataMax']}
                   tickFormatter={(value) => `$${value.toFixed(0)}`}
                 />
-                <YAxis 
+                <YAxis
                   tickFormatter={(value) => formatGEX(value)}
                 />
                 <Tooltip
-                  formatter={(value: number) => [formatGEX(value), 'Gamma Exposure']}
+                  formatter={(value: number | undefined) => value !== undefined ? [formatGEX(value), 'Gamma Exposure'] : ['', '']}
                   labelFormatter={(label) => `Strike: ${formatPrice(label)}`}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="gamma" 
-                  stroke="#3b82f6" 
+                <Line
+                  type="monotone"
+                  dataKey="gamma"
+                  stroke="#3b82f6"
                   strokeWidth={2}
                   dot={false}
                 />
                 {gammaData.gamma_flip_level && (
-                  <ReferenceLine 
-                    x={gammaData.gamma_flip_level} 
-                    stroke="#ef4444" 
+                  <ReferenceLine
+                    x={gammaData.gamma_flip_level}
+                    stroke="#ef4444"
                     strokeDasharray="5 5"
                     label={{ value: "Gamma Flip", position: "top" }}
                   />
                 )}
                 {gammaData.current_price > 0 && (
-                  <ReferenceLine 
-                    x={gammaData.current_price} 
-                    stroke="#10b981" 
+                  <ReferenceLine
+                    x={gammaData.current_price}
+                    stroke="#10b981"
                     strokeDasharray="3 3"
                     label={{ value: "Current Price", position: "top" }}
                   />
                 )}
                 {gammaData.max_pain && (
-                  <ReferenceLine 
-                    x={gammaData.max_pain} 
-                    stroke="#f59e0b" 
+                  <ReferenceLine
+                    x={gammaData.max_pain}
+                    stroke="#f59e0b"
                     strokeDasharray="2 2"
                     label={{ value: "Max Pain", position: "bottom" }}
                   />
@@ -337,6 +361,28 @@ export function GammaTracker({
               ? 'Dealers are long options (stabilizing). Price moves are dampened. Buy dips, sell rallies.'
               : 'Dealers are short options (amplifying). Price moves are accelerated. Momentum trades favored.'}
           </div>
+        </div>
+
+        {/* Gamma Walls Table */}
+        {gammaData.gamma_walls && gammaData.gamma_walls.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold mb-2">Top Gamma Walls</h3>
+            <div className="space-y-1">
+              {gammaData.gamma_walls.slice(0, 5).map((wall, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+                  <span className="font-medium">${wall.strike.toFixed(0)}</span>
+                  <span className={wall.signal === 'SUPPORT' ? 'text-green-500' : 'text-red-500'}>{wall.signal}</span>
+                  <span className="text-gray-500">GEX: {formatGEX(wall.gex)}</span>
+                  <span className="text-gray-400">OI: {wall.open_interest.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Source label */}
+        <div className="mt-3 text-xs text-gray-400 text-right">
+          Source: {gammaData.source?.toUpperCase() || 'CBOE'}
         </div>
       </div>
     </Card>

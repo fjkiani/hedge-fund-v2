@@ -1,7 +1,8 @@
-import { LayoutDashboard, Signal, TrendingUp, BarChart3, Zap, Activity } from 'lucide-react';
+import { LayoutDashboard, Signal, TrendingUp, BarChart3, Zap, Activity, Brain } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: Brain, label: 'Agent X', path: '/agent-x' },
   { icon: Signal, label: 'Signals', path: '/signals' },
   { icon: TrendingUp, label: 'Dark Pool', path: '/darkpool' },
   { icon: BarChart3, label: 'Gamma', path: '/gamma' },

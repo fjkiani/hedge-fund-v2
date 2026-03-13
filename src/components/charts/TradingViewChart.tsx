@@ -58,7 +58,7 @@ export interface GammaWall {
 
 export interface MALevel {
   value: number;
-  signal: 'BUY' | 'SELL' | 'NEUTRAL';
+  signal: string;
 }
 
 export interface PivotSet {
@@ -74,6 +74,17 @@ export interface TrapZoneOverlay {
   type: string;
   conviction: number;
   emoji: string;
+}
+
+export interface SignalMarker {
+  time: number;        // Unix timestamp (seconds)
+  action: 'BUY' | 'SELL';
+  entry_price: number;
+  target_price: number;
+  stop_price: number;
+  confidence: number;
+  type: string;
+  is_master: boolean;
 }
 
 export interface TradingViewChartProps {
@@ -101,6 +112,11 @@ export interface TradingViewChartProps {
 
   // Trap zone overlays (midpoint line per trap)
   traps?: TrapZoneOverlay[];
+
+  // Signal markers (BUY/SELL arrows)
+  signals?: SignalMarker[];
+
+  activeContextId?: string | null;
 
   height?: number;
 }
@@ -139,6 +155,8 @@ export function TradingViewChart({
   movingAvgs = {},
   pivots = {},
   traps = [],
+  signals = [],
+  activeContextId = null,
   height = 460,
 }: TradingViewChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,7 +180,7 @@ export function TradingViewChart({
         horzLines: { color: '#1a1a28' },
       },
       width: containerRef.current.clientWidth,
-      height,
+      height: containerRef.current.clientHeight || height,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -203,7 +221,10 @@ export function TradingViewChart({
 
     const handleResize = () => {
       if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+        chart.applyOptions({ 
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -248,28 +269,93 @@ export function TradingViewChart({
     linesRef.current = [];
 
     const addLine = (
+      id: string,
       price: number,
-      color: string,
+      baseColor: string,
       title: string,
-      width: 1 | 2 | 3 | 4 = 1,
-      style: LineStyle = LineStyle.Solid
+      baseWidth: 1 | 2 | 3 | 4 = 1,
+      baseStyle: LineStyle = LineStyle.Solid
     ) => {
       if (!price || isNaN(price)) return;
+
+      let finalColor = baseColor;
+      let finalWidth = baseWidth;
+      let finalStyle = baseStyle;
+
+      if (activeContextId) {
+        if (activeContextId === id || id === 'current-price') {
+          // Highlight active or always show current price
+          finalWidth = Math.min(baseWidth + 1, 4) as any;
+          finalStyle = LineStyle.Solid;
+          if (finalColor.length > 7) { 
+             finalColor = finalColor.substring(0, 7);
+          }
+        } else {
+          // Dim others to 20% opacity (approx hex 33)
+          const hex = baseColor.substring(0, 7);
+          finalColor = `${hex}33`; 
+        }
+      }
+
       const line = candleRef.current!.createPriceLine({
-        price, color, lineWidth: width, lineStyle: style,
+        price, color: finalColor, lineWidth: finalWidth, lineStyle: finalStyle,
         axisLabelVisible: true, title,
-        axisLabelColor: color, axisLabelTextColor: color,
+        axisLabelColor: finalColor, axisLabelTextColor: finalColor,
         lineVisible: true,
       });
       linesRef.current.push(line);
     };
 
-    // 1. DP levels
-    dpLevels.forEach((lvl) => {
+    // Calculate nearest levels to match DecisionStrip IDs
+    const histLevels = dpLevels.filter((l: any) => !l.is_live).sort((a: any, b: any) => a.price - b.price);
+    const nearestSupport = currentPrice ? [...histLevels].reverse().find((l: any) => l.price < currentPrice && l.type === 'SUPPORT') : null;
+    const nearestResistance = currentPrice ? histLevels.find((l: any) => l.price > currentPrice && l.type === 'RESISTANCE') : null;
+
+    const callWalls = gammaWalls.filter((w: any) => w.gex > 0).sort((a: any, b: any) => b.gex - a.gex);
+    const putWalls = gammaWalls.filter((w: any) => w.gex < 0).sort((a: any, b: any) => a.gex - b.gex);
+    const largestCallWall = callWalls.length > 0 ? callWalls[0] : null;
+    const largestPutWall = putWalls.length > 0 ? putWalls[0] : null;
+
+    // 1. DP levels + Signal overlays (Visually dominant)
+    dpLevels.forEach((lvl: any) => {
       if (!lvl.price) return;
-      const color = lvl.type === 'SUPPORT' ? '#00ff88' : lvl.type === 'RESISTANCE' ? '#ff3366' : '#ffd700';
-      const w: 1 | 2 | 3 = lvl.strength === 'STRONG' ? 2 : lvl.strength === 'MODERATE' ? 1 : 1;
-      addLine(lvl.price, color, `DP ${lvl.type}`, w, lvl.type === 'BATTLEGROUND' ? LineStyle.Dashed : LineStyle.Solid);
+
+      // ── Signal overlay lines (from "Show on Chart") ──
+      if (lvl.type === 'SIGNAL_ENTRY') {
+        addLine('sig-entry', lvl.price, '#00d4ff', `📍 ENTRY $${lvl.price.toFixed(2)}`, 3, LineStyle.Solid);
+        return;
+      }
+      if (lvl.type === 'SIGNAL_TARGET') {
+        addLine('sig-target', lvl.price, '#00ff88', `🎯 TARGET $${lvl.price.toFixed(2)}`, 2, LineStyle.Dashed);
+        return;
+      }
+      if (lvl.type === 'SIGNAL_STOP') {
+        addLine('sig-stop', lvl.price, '#ff3366', `🛑 STOP $${lvl.price.toFixed(2)}`, 2, LineStyle.Dashed);
+        return;
+      }
+      
+      const isSupport = lvl.type === 'SUPPORT';
+      const isResist = lvl.type === 'RESISTANCE';
+      // Base colors: green for support, red for resistance, gold for battleground
+      const color = isSupport ? '#00e676' : isResist ? '#ff1744' : '#ffd700';
+      
+      let id = `dp-${lvl.price}`;
+      if (lvl.is_live) id = 'dp-live';
+      else if (nearestResistance && lvl.price === nearestResistance.price) id = 'dp-hist-res';
+      else if (nearestSupport && lvl.price === nearestSupport.price) id = 'dp-hist-sup';
+
+      // Storytelling: Is this a Live Wall (today) or Historical Interest (Dec 2025)?
+      if (lvl.is_live) {
+        // Live walls are BOLD and SOLID
+        const label = `🏦 LIVE ${isSupport ? 'SUP' : isResist ? 'RES' : 'BAT'} ${lvl.short_pct}% SV`;
+        addLine(id, lvl.price, color, label, 4, LineStyle.Solid);
+      } else {
+        // Historical zones are MUTED and DASHED, showing the bounce rate
+        // We lower the opacity of the color for historical
+        const mutedColor = color + '80'; // 50% opacity hex
+        const label = `🏛️ HIST ${lvl.bounce_rate}% bounce (${lvl.touches}x)`;
+        addLine(id, lvl.price, mutedColor, label, 2, LineStyle.Dashed);
+      }
     });
 
     // 2. GEX walls
@@ -277,50 +363,118 @@ export function TradingViewChart({
       const color = wall.gex > 0 ? '#ff9800' : '#00bcd4';
       const absGex = Math.abs(wall.gex);
       const w: 1 | 2 | 3 = absGex > 500_000 ? 2 : 1;
-      addLine(wall.strike, color, `GEX ${wall.gex > 0 ? '▲' : '▼'} ${(absGex / 1000).toFixed(0)}K`, w, LineStyle.Dotted);
+      
+      let id = `gex-${wall.strike}`;
+      if (largestCallWall && wall.strike === largestCallWall.strike) id = 'gex-call';
+      else if (largestPutWall && wall.strike === largestPutWall.strike) id = 'gex-put';
+
+      addLine(id, wall.strike, color, `GEX ${wall.gex > 0 ? '▲' : '▼'} ${(absGex / 1000).toFixed(0)}K`, w, LineStyle.Dotted);
     });
 
     // 3. Gamma flip
     if (gammaFlipLevel) {
-      addLine(gammaFlipLevel, '#a855f7', 'γ Flip', 2, LineStyle.Dotted);
+      addLine('gamma-flip', gammaFlipLevel, '#a855f7', 'γ Flip', 2, LineStyle.Dotted);
     }
 
     // 4. VWAP
     if (vwap) {
-      addLine(vwap, '#00d4ff', 'VWAP', 1, LineStyle.Dashed);
+      addLine('vwap', vwap, '#00d4ff', 'VWAP', 1, LineStyle.Dashed);
     }
 
     // 5. Current price
     if (currentPrice) {
-      addLine(currentPrice, '#ffffff', '● Now', 1, LineStyle.Solid);
+      addLine('current-price', currentPrice, '#ffffff', '● Now', 1, LineStyle.Solid);
     }
 
     // 6. MA lines
     Object.entries(movingAvgs).forEach(([key, ma]) => {
       const cfg = MA_CONFIG[key];
       if (!cfg || !ma?.value) return;
-      addLine(ma.value, cfg.color, `${key} (${ma.signal})`, cfg.width as 1 | 2, cfg.style);
+      
+      let id = `ma-${key}`;
+      if (key === 'MA200_SMA') id = 'ma-200';
+      if (key === 'MA50_SMA') id = 'ma-50';
+
+      addLine(id, ma.value, cfg.color, `${key} (${ma.signal})`, cfg.width as 1 | 2, cfg.style);
     });
 
-    // 7. Classic pivots (main set only, avoid clutter)
+    // 7. Classic pivots (Decluttered: R1/S1 only)
     if (pivots.classic) {
       const p = pivots.classic;
-      addLine(p.P, '#ffffff', 'Pivot', 1, LineStyle.Dotted);
-      addLine(p.R1, '#4488ff', 'R1', 1, LineStyle.Dashed);
-      addLine(p.R2, '#4488ff', 'R2', 1, LineStyle.Dashed);
-      addLine(p.S1, '#4488ff', 'S1', 1, LineStyle.Dashed);
-      addLine(p.S2, '#4488ff', 'S2', 1, LineStyle.Dashed);
+      addLine('pivot-r1', p.R1, '#4488ff', 'R1', 1, LineStyle.Dashed);
+      addLine('pivot-s1', p.S1, '#4488ff', 'S1', 1, LineStyle.Dashed);
     }
 
     // 8. Trap zone midpoint lines
-    traps.forEach((trap) => {
+    traps.forEach((trap, idx) => {
       const mid = (trap.price_min + trap.price_max) / 2;
       const color = TRAP_COLORS[trap.type] ?? '#888888';
       const label = `${trap.emoji} ${trap.type.replace(/_/g, ' ')} [${trap.conviction}/5]`;
-      addLine(mid, color, label, 2, LineStyle.Solid);
+      addLine(`trap-${trap.type}-${idx}`, mid, color, label, 2, LineStyle.Solid);
     });
 
-  }, [dpLevels, gammaWalls, gammaFlipLevel, vwap, currentPrice, movingAvgs, pivots, traps, ready]);
+  }, [dpLevels, gammaWalls, gammaFlipLevel, vwap, currentPrice, movingAvgs, pivots, traps, activeContextId, ready]);
+
+  // ── Signal markers (BUY/SELL as price lines — LWC v5 doesn't expose setMarkers) ──
+  useEffect(() => {
+    if (!candleRef.current || !ready || signals.length === 0) return;
+
+    // Signal lines are added to linesRef and cleared by the overlays effect above.
+    // We add them here as extra lines — they'll be cleared on next overlays cycle.
+    signals.forEach((sig) => {
+      const isBuy = sig.action === 'BUY';
+      const entryColor = isBuy ? '#00e676' : '#ff1744';
+      const masterTag = sig.is_master ? ' ★' : '';
+
+      // Entry price line
+      if (sig.entry_price > 0) {
+        const line = candleRef.current!.createPriceLine({
+          price: sig.entry_price,
+          color: entryColor,
+          lineWidth: 2,
+          lineStyle: LineStyle.Solid,
+          axisLabelVisible: true,
+          title: `${isBuy ? '▲' : '▼'} ${sig.action} ${sig.confidence.toFixed(0)}%${masterTag}`,
+          lineVisible: true,
+          axisLabelColor: entryColor,
+          axisLabelTextColor: entryColor,
+        });
+        linesRef.current.push(line);
+      }
+
+      // Target line (dashed green)
+      if (sig.target_price > 0) {
+        const line = candleRef.current!.createPriceLine({
+          price: sig.target_price,
+          color: '#00e67660',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `T: ${sig.type}`,
+          lineVisible: true,
+          axisLabelColor: '#00e67660',
+          axisLabelTextColor: '#00e67660',
+        });
+        linesRef.current.push(line);
+      }
+
+      // Stop line (dashed red)
+      if (sig.stop_price > 0) {
+        const line = candleRef.current!.createPriceLine({
+          price: sig.stop_price,
+          color: '#ff174460',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `S: ${sig.type}`,
+          lineVisible: true,
+          axisLabelColor: '#ff174460',
+          axisLabelTextColor: '#ff174460',
+        });
+        linesRef.current.push(line);
+      }
+    });
+  }, [signals, ready]);
 
   // ── Alert border ──────────────────────────────────────────────────────────
   const borderGlow =
@@ -330,8 +484,8 @@ export function TradingViewChart({
           '';
 
   return (
-    <div className={`w-full rounded-xl overflow-hidden ${borderGlow}`}>
-      <div ref={containerRef} className="w-full" style={{ height: `${height}px` }} />
+    <div className={`w-full h-full rounded-xl overflow-hidden ${borderGlow}`}>
+      <div ref={containerRef} className="w-full h-full min-h-[400px]" />
     </div>
   );
 }
