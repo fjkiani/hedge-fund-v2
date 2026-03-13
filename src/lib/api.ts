@@ -198,7 +198,6 @@ export const economicApi = {
   upcomingCritical: () => api.get('/economic/upcoming-critical'),
   exploitBrief: (event: string = 'CPI') => api.get(`/economic/exploit-brief?event=${event}`),
   releases: () => api.get('/economic/releases'),
-  fedwatchNarrative: () => api.get('/economic/fedwatch/narrative'),
 };
 
 // Gamma Exposure
@@ -254,3 +253,41 @@ export const axlfiApi = {
   detail:        (sym: string, w = 30) => api.get(`/axlfi/detail/${sym}?window=${w}`),
   earningsIntel: (tickers: string[])   => api.get(`/axlfi/earnings-intel?tickers=${tickers.join(',')}`),
 };
+
+// Morning Brief (zero-click pre-market intelligence)
+export const briefApi = {
+  get: async () => {
+    const { signal, clear } = withTimeout(30_000);
+    try {
+      const res = await fetch(`${MONITOR_URL}/morning-brief`, { signal });
+      if (!res.ok) throw new Error(`Brief: ${res.statusText}`);
+      return res.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error('Morning brief request timed out');
+      throw e;
+    } finally { clear(); }
+  },
+  generate: async () => {
+    const { signal, clear } = withTimeout(120_000); // generation can be slow
+    try {
+      const res = await fetch(`${MONITOR_URL}/morning-brief/generate`, { signal });
+      if (!res.ok) throw new Error(`Brief generate: ${res.statusText}`);
+      return res.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error('Brief generation timed out');
+      throw e;
+    } finally { clear(); }
+  },
+  signalIntel: async () => {
+    const { signal, clear } = withTimeout(60_000);
+    try {
+      const res = await fetch(`${MONITOR_URL}/signal-intel`, { signal });
+      if (!res.ok) throw new Error(`Signal intel: ${res.statusText}`);
+      return res.json();
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw new Error('Signal intel request timed out');
+      throw e;
+    } finally { clear(); }
+  },
+};
+

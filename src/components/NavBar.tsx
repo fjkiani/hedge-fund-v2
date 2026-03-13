@@ -6,12 +6,16 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const NAV_ITEMS = [
-    { path: '/', label: 'Dashboard', icon: '📊' },
+    { path: '/', label: "Today's Brief", icon: '📋' },
+    { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/agent-x', label: 'Agent X', icon: '🧠' },
     { path: '/feds', label: 'The Feds', icon: '🏦' },
     { path: '/politicians', label: 'Politicians', icon: '🏛️' },
     { path: '/exploit', label: 'Exploit', icon: '🐺' },
     { path: '/axlfi', label: 'AXLFI Intel', icon: '🛰️' },
+    { path: '/gamma', label: 'Gamma', icon: '📈' },
+    { path: '/squeeze', label: 'Squeeze', icon: '🔥' },
+    { path: '/options', label: 'Options', icon: '⚡' },
 ];
 
 export function NavBar() {
