@@ -10,10 +10,13 @@
  *   6. Summary sentence
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || 
   (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 interface Brief {
   date: string;
@@ -61,6 +64,25 @@ interface Brief {
     flag: string;
   }[];
   summary: string;
+  wall_breached?: boolean;
+  wall_breach_details?: {
+    spy_price: number;
+    call_wall: number;
+    delta: number;
+    breach_time: string;
+  } | null;
+}
+
+interface GateHealth {
+  win_rate_last_n: number;
+  blocked_vs_allowed: string;
+  avg_r_last_n: number;
+  total_signals: number;
+  blocked_count: number;
+  allowed_count: number;
+  wins: number;
+  losses: number;
+  n: number;
 }
 
 const VERDICT_STYLES: Record<string, { bg: string; border: string; text: string; glow: string }> = {
@@ -82,8 +104,13 @@ export function TodaysBrief() {
   const [brief, setBrief] = useState<Brief | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [gateHealth, setGateHealth] = useState<GateHealth | null>(null);
+  const [gateHealthError, setGateHealthError] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const navigate = useNavigate();
 
-  useEffect(() => {
+  // ── Fetch brief ─────────────────────────────────────────────
+  const fetchBrief = useCallback(() => {
     fetch(`${MONITOR_URL}/morning-brief`)
       .then(r => r.json())
       .then(data => {
@@ -92,6 +119,45 @@ export function TodaysBrief() {
         setLoading(false);
       })
       .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  // Initial fetch
+  useEffect(() => { fetchBrief(); }, [fetchBrief]);
+
+  // ── Gap 2: Auto-poll every 60s during market hours ──────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const utcH = now.getUTCHours();
+      const etH = utcH - 4; // rough ET conversion (EDT)
+      if (etH >= 9 && etH <= 16) {
+        fetchBrief();
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchBrief]);
+
+  // ── Gap 4: Gate Health badge ────────────────────────────────
+  useEffect(() => {
+    fetch(`${API_URL}/gate/health?n=20`)
+      .then(r => {
+        if (!r.ok) throw new Error('Gate health unavailable');
+        return r.json();
+      })
+      .then(data => setGateHealth(data))
+      .catch(() => setGateHealthError(true));
+  }, []);
+
+  // ── Task 4.1: Check if market is open, show redirect banner ─
+  useEffect(() => {
+    fetch(`${API_URL}/intraday/snapshot`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.market_open) {
+          setMarketOpen(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   if (loading) return (
@@ -113,10 +179,58 @@ export function TodaysBrief() {
     </div>
   );
 
-  const vs = VERDICT_STYLES[brief.verdict] || VERDICT_STYLES.NEUTRAL;
+  // ── Gap 5: Override verdict style if wall breached ──────────
+  const wallBreached = brief.wall_breached === true;
+  const vs = wallBreached
+    ? VERDICT_STYLES.SELL  // Force RED styling when wall breached
+    : (VERDICT_STYLES[brief.verdict] || VERDICT_STYLES.NEUTRAL);
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem' }}>
+
+      {/* ── Task 4.1: Market Open → Go to Live Session banner ── */}
+      {marketOpen && (
+        <div
+          onClick={() => navigate('/live')}
+          style={{
+            background: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '0.75rem',
+            padding: '0.75rem 1.25rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+        >
+          <span style={{ color: '#60a5fa', fontWeight: 600, fontSize: '0.9rem' }}>
+            🛡️ Market is open — View Live Session for real-time thesis status
+          </span>
+          <span style={{ color: '#3b82f6', fontSize: '1.2rem' }}>→</span>
+        </div>
+      )}
+
+      {/* ── Gap 5: Wall Breach Alert Banner ─────────────────── */}
+      {wallBreached && brief.wall_breach_details && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '0.75rem',
+          padding: '1rem 1.25rem',
+          marginBottom: '1rem',
+          boxShadow: '0 0 30px rgba(239, 68, 68, 0.2)',
+        }}>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ef4444', marginBottom: '0.25rem' }}>
+            ⚠️ SPY WALL BREACH
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#fca5a5' }}>
+            SPY at ${brief.wall_breach_details.spy_price} — ${Math.abs(brief.wall_breach_details.delta).toFixed(2)} below call wall ${brief.wall_breach_details.call_wall} — detected {brief.wall_breach_details.breach_time}
+          </div>
+        </div>
+      )}
+
       {/* ── Verdict Banner ────────────────────────────────────── */}
       <div style={{
         background: vs.bg,
@@ -137,7 +251,7 @@ export function TodaysBrief() {
           letterSpacing: '0.08em',
           marginBottom: '0.5rem',
         }}>
-          {brief.verdict}
+          {wallBreached ? '⚠️ BREACH' : brief.verdict}
         </div>
         <div style={{ fontSize: '0.95rem', color: '#cbd5e1', lineHeight: 1.6 }}>
           {brief.summary}
@@ -255,6 +369,46 @@ export function TodaysBrief() {
         <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
           First hour: {brief.volume_profile.first_hour_pct}% · Ratio: {brief.volume_profile.front_back_ratio}x
         </span>
+      </div>
+
+      {/* ── Gap 4: Gate Health Badge ──────────────────────────── */}
+      <div style={{
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.05)',
+        borderRadius: '0.75rem',
+        padding: '0.75rem 1.25rem',
+        marginBottom: '1.5rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Gate Health</span>
+        {gateHealthError ? (
+          <span style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>Unavailable</span>
+        ) : gateHealth ? (
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '0.8rem',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '1rem',
+              background: gateHealth.win_rate_last_n >= 50 ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              color: gateHealth.win_rate_last_n >= 50 ? '#34d399' : '#ef4444',
+            }}>
+              WR: {gateHealth.win_rate_last_n.toFixed(0)}%
+            </span>
+            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+              {gateHealth.blocked_vs_allowed}
+            </span>
+            <span style={{
+              fontSize: '0.8rem',
+              color: gateHealth.avg_r_last_n >= 0 ? '#34d399' : '#ef4444',
+            }}>
+              Avg: {gateHealth.avg_r_last_n.toFixed(2)}R
+            </span>
+          </div>
+        ) : (
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Loading...</span>
+        )}
       </div>
 
       {/* ── Approved Tickers ──────────────────────────────────── */}
