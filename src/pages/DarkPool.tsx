@@ -11,7 +11,7 @@
  * Each panel is wrapped in an error boundary so one crash doesn't nuke the page.
  */
 
-import React, { Component, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { DPEdgeDashboard } from '../components/widgets/DPEdgeDashboard';
