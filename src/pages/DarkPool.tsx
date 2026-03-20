@@ -20,6 +20,7 @@ import { GexPanel } from '../components/widgets/GexPanel';
 import { VolRegimePanel } from '../components/widgets/VolRegimePanel';
 import { SpxMatrixPanel } from '../components/widgets/SpxMatrixPanel';
 import { TrapCompressionSignal } from '../components/widgets/TrapCompressionSignal';
+import { KillShotsPanel } from '../components/widgets/KillShotsPanel';
 
 /* ── Error Boundary (isolates panel crashes) ── */
 class PanelErrorBoundary extends Component<{ name: string; children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -88,6 +89,13 @@ export function DarkPool() {
           <span className="inline-block w-2 h-2 rounded-full bg-accent-green animate-pulse" />
           FINRA Off-Exchange Volume · GEX · Vol Regime · Trap Matrix
         </p>
+      </motion.div>
+
+      {/* ── KILL SHOTS: Divergence Score — highest-level verdict ── */}
+      <motion.div variants={fadeUp}>
+        <PanelErrorBoundary name="Kill Shots">
+          <KillShotsPanel />
+        </PanelErrorBoundary>
       </motion.div>
 
       {/* ── PRIMARY SIGNAL: Trap Compression Zone ── */}
