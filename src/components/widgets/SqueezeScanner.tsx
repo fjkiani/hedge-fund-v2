@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { squeezeApi, createWebSocket } from '../../lib/api';
 
 interface SqueezeCandidate {
@@ -60,7 +59,6 @@ export function SqueezeScanner({
     minSI: 15.0,
     minBorrowFee: 0.0
   });
-  const [priceData, setPriceData] = useState<Record<string, any[]>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
 
@@ -112,33 +110,11 @@ export function SqueezeScanner({
 
       setCandidates(filtered);
 
-      // Fetch price data for sparklines
-      for (const candidate of filtered.slice(0, 10)) {
-        if (!priceData[candidate.symbol]) {
-          fetchPriceData(candidate.symbol);
-        }
-      }
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch squeeze candidates');
       log.error('Error fetching squeeze candidates:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Fetch 5-day price data for sparkline
-  const fetchPriceData = async (symbol: string) => {
-    try {
-      // Use yfinance via backend or direct API call
-      // For now, generate mock data (replace with real API call)
-      const mockData = Array.from({ length: 5 }, (_, i) => ({
-        day: i + 1,
-        price: 100 + Math.random() * 10
-      }));
-      setPriceData(prev => ({ ...prev, [symbol]: mockData }));
-    } catch (err) {
-      log.error(`Error fetching price data for ${symbol}:`, err);
     }
   };
 
@@ -266,6 +242,7 @@ export function SqueezeScanner({
           )}
         </div>
       </div>
+      <p className="text-[11px] text-text-muted/80 italic px-4 pb-2">Stocks where short sellers are trapped. High SI% + high borrow fees + FTD spikes = the shorts cannot exit without buying. When buying starts, the move is violent and one-directional.</p>
 
       {/* Filters */}
       <div className="mb-4 p-3 bg-bg-tertiary rounded-lg border border-border-subtle">
@@ -330,20 +307,18 @@ export function SqueezeScanner({
               <th className="text-left p-2 cursor-pointer hover:text-text-primary" onClick={() => handleSort('price_change_5d')}>
                 5D Change {sortField === 'price_change_5d' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
-              <th className="text-left p-2">Chart</th>
             </tr>
           </thead>
           <tbody>
             {candidates.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-text-muted">
+                <td colSpan={7} className="p-8 text-center text-text-muted">
                   No squeeze candidates found
                 </td>
               </tr>
             ) : (
               candidates.map((candidate) => {
                 const isExpanded = expandedSymbol === candidate.symbol;
-                const sparklineData = priceData[candidate.symbol] || [];
 
                 return (
                   <tr
@@ -372,25 +347,6 @@ export function SqueezeScanner({
                         </span>
                       ) : (
                         <span className="text-text-muted">N/A</span>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      {sparklineData.length > 0 ? (
-                        <div className="w-16 h-8">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={sparklineData}>
-                              <Line
-                                type="monotone"
-                                dataKey="price"
-                                stroke={candidate.price_change_5d && candidate.price_change_5d >= 0 ? '#00ff88' : '#ff3366'}
-                                strokeWidth={2}
-                                dot={false}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <span className="text-text-muted text-xs">Loading...</span>
                       )}
                     </td>
                   </tr>
@@ -431,15 +387,16 @@ export function SqueezeScanner({
                     <div className="text-xs text-text-muted mt-1">
                       R/R: {candidate.risk_reward_ratio.toFixed(2)}:1
                     </div>
+                    <p className="text-[10px] text-text-muted/60 mt-1 italic">Risk ${(candidate.entry_price - candidate.stop_price).toFixed(2)}/share for ${(candidate.target_price - candidate.entry_price).toFixed(2)} potential upside. {candidate.risk_reward_ratio >= 3 ? 'Excellent R:R — worth the trade.' : candidate.risk_reward_ratio >= 2 ? 'Acceptable R:R.' : 'Marginal R:R — needs strong conviction.'}</p>
                   </div>
 
                   <div>
                     <div className="text-xs text-text-muted mb-1">Component Scores</div>
                     <div className="text-xs text-text-secondary space-y-1">
-                      <div>SI Score: {candidate.si_score.toFixed(1)}</div>
-                      <div>Borrow Score: {candidate.borrow_fee_score.toFixed(1)}</div>
-                      <div>FTD Score: {candidate.ftd_score.toFixed(1)}</div>
-                      <div>DP Support: {candidate.dp_support_score.toFixed(1)}</div>
+                      <div>SI Score: {candidate.si_score.toFixed(1)} <span className="text-text-muted/50 italic">— % of float sold short</span></div>
+                      <div>Borrow Score: {candidate.borrow_fee_score.toFixed(1)} <span className="text-text-muted/50 italic">— cost to maintain short</span></div>
+                      <div>FTD Score: {candidate.ftd_score.toFixed(1)} <span className="text-text-muted/50 italic">— failed deliveries = trapped shorts</span></div>
+                      <div>DP Support: {candidate.dp_support_score.toFixed(1)} <span className="text-text-muted/50 italic">— institutional buying on dark pools</span></div>
                     </div>
                   </div>
                 </div>

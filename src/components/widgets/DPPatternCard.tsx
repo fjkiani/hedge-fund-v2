@@ -89,6 +89,16 @@ export function DPPatternCard({ patterns, loading }: DPPatternCardProps) {
                     {patterns.reduce((sum, p) => sum + p.total_samples, 0).toLocaleString()} total samples
                 </span>
             </div>
+            {(() => {
+                const totalSamples = patterns.reduce((sum, p) => sum + p.total_samples, 0);
+                const avgBounce = patterns.length > 0 ? (patterns.reduce((sum, p) => sum + p.bounce_rate * p.total_samples, 0) / totalSamples) : 0;
+                const totalBounces = Math.round(totalSamples * avgBounce / 100);
+                return (
+                    <p className="px-4 py-1.5 text-[11px] text-text-muted/80 italic border-b border-border-subtle bg-bg-primary/30">
+                        {avgBounce.toFixed(1)}% of the time when {patterns[0]?.pattern_name ? 'SPY' : 'price'} hits a dark pool level, it bounces. Out of {totalSamples.toLocaleString()} tracked interactions, {totalBounces.toLocaleString()} bounced. When the level watcher fires, history says take the trade.
+                    </p>
+                );
+            })()}
 
             {/* Table */}
             <div className="overflow-x-auto">

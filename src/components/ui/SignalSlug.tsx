@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 interface TechnicalContext {
   trigger_source: string;
@@ -18,6 +18,22 @@ interface TechnicalContext {
   embed_fields: { label: string; value: string }[];
 }
 
+export interface SignalGex {
+  gamma_regime: 'POSITIVE' | 'NEGATIVE' | null;
+  total_gex: number;
+  gamma_flip?: number | null;
+  max_pain?: number | null;
+  top_wall?: number | null;
+}
+
+export interface SignalKeyLevels {
+  call_wall?: number | null;
+  put_wall?: number | null;
+  poc?: number | null;
+  gamma_flip?: number | null;
+  max_pain?: number | null;
+}
+
 export interface SignalData {
   id: string;
   symbol: string;
@@ -34,6 +50,15 @@ export interface SignalData {
   source: string;
   is_master: boolean;
   technical_context?: TechnicalContext;
+  // V8 fields (optional — only DarkPoolTrend signals have these)
+  reasoning_chain?: string[];
+  regime_tier?: number;
+  gex?: SignalGex;
+  key_levels?: SignalKeyLevels;
+  dp_trend_velocity?: number;
+  invalidation_conditions?: string[];
+  entry_note?: string;
+  signal_generated_at?: string;
 }
 
 interface SignalSlugProps {
@@ -159,15 +184,120 @@ export function SignalSlug({ signal, isExpanded, onToggle, onShowOnChart, onTake
       {/* ── EXPANDED PANEL ── */}
       {isExpanded && (
         <div className="ui-slug__expand">
-          {/* WHY THIS SIGNAL */}
-          {signal.reasoning && signal.reasoning.length > 0 && (
+          {/* WHY THIS SIGNAL — enriched vs legacy render */}
+          {(() => {
+            const chain = signal.reasoning_chain || signal.reasoning || [];
+            const isEnriched = Array.isArray(signal.reasoning_chain) && signal.reasoning_chain.length >= 5;
+
+            if (chain.length === 0) return null;
+
+            return (
+              <>
+                <div className="ui-slug__section-title">
+                  {isEnriched ? '🔗 Reasoning Chain' : 'Why This Signal'}
+                </div>
+                <div className="ui-slug__reasoning">
+                  {isEnriched ? (
+                    /* Enriched: numbered steps with arrow connectors */
+                    chain.map((step, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: i < chain.length - 1 ? '2px' : '0' }}>
+                        <span style={{
+                          minWidth: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: '50%', fontSize: '10px', fontWeight: 800, flexShrink: 0,
+                          background: i === chain.length - 1 ? 'rgba(0, 212, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                          color: i === chain.length - 1 ? '#00d4ff' : 'rgba(255, 255, 255, 0.6)',
+                          border: `1px solid ${i === chain.length - 1 ? 'rgba(0, 212, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                        }}>{i + 1}</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '12px', lineHeight: '1.4' }}>{step}</span>
+                          {i < chain.length - 1 && (
+                            <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '10px', marginLeft: '2px', lineHeight: '1.2' }}>↓</div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    /* Legacy: existing bullet dot render — NO CHANGE */
+                    chain.map((reason, i) => (
+                      <div key={i} className="ui-slug__reason">
+                        <div className="ui-slug__reason-dot" />
+                        <span>{reason}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* INVALIDATION CONDITIONS — only for enriched signals */}
+          {signal.invalidation_conditions && signal.invalidation_conditions.length > 0 && (
             <>
-              <div className="ui-slug__section-title">Why This Signal</div>
+              <div className="ui-slug__section-title" style={{ color: 'var(--accent-orange, #ffa726)' }}>⛔ Invalidation Conditions</div>
               <div className="ui-slug__reasoning">
-                {signal.reasoning.map((reason, i) => (
+                {signal.invalidation_conditions.map((cond, i) => (
                   <div key={i} className="ui-slug__reason">
-                    <div className="ui-slug__reason-dot" />
-                    <span>{reason}</span>
+                    <div className="ui-slug__reason-dot" style={{ background: 'var(--accent-orange, #ffa726)' }} />
+                    <span style={{ color: 'rgba(255, 167, 38, 0.85)', fontSize: '12px' }}>{cond}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* INTELLIGENCE DATA — GEX + Key Levels (enriched signals) OR embed_fields (legacy) */}
+          {(signal.gex || signal.key_levels || (ctx?.embed_fields && ctx.embed_fields.length > 0)) && (
+            <>
+              <div className="ui-slug__section-title">Intelligence Data</div>
+              <div className="ui-slug__fields">
+                {signal.gex && (
+                  <>
+                    <div className="ui-slug__field">
+                      <div className="ui-slug__field-label">GEX Regime</div>
+                      <div className="ui-slug__field-value" style={{
+                        color: signal.gex.gamma_regime === 'POSITIVE' ? '#00c853' : '#ff5252'
+                      }}>
+                        {signal.gex.gamma_regime ?? 'N/A'} ({(signal.gex.total_gex / 1_000_000).toFixed(1)}M)
+                      </div>
+                    </div>
+                    {signal.gex.max_pain != null && (
+                      <div className="ui-slug__field">
+                        <div className="ui-slug__field-label">Max Pain</div>
+                        <div className="ui-slug__field-value">${signal.gex.max_pain.toLocaleString()}</div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {signal.key_levels && (
+                  <>
+                    {signal.key_levels.call_wall != null && (
+                      <div className="ui-slug__field">
+                        <div className="ui-slug__field-label">Call Wall</div>
+                        <div className="ui-slug__field-value" style={{ color: '#00c853' }}>
+                          ${signal.key_levels.call_wall.toFixed(0)}
+                        </div>
+                      </div>
+                    )}
+                    {signal.key_levels.put_wall != null && (
+                      <div className="ui-slug__field">
+                        <div className="ui-slug__field-label">Put Wall</div>
+                        <div className="ui-slug__field-value" style={{ color: '#ff5252' }}>
+                          ${signal.key_levels.put_wall.toFixed(0)}
+                        </div>
+                      </div>
+                    )}
+                    {signal.key_levels.gamma_flip != null && (
+                      <div className="ui-slug__field">
+                        <div className="ui-slug__field-label">Gamma Flip</div>
+                        <div className="ui-slug__field-value">${signal.key_levels.gamma_flip.toFixed(0)}</div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {ctx?.embed_fields?.map((field, i) => (
+                  <div key={i} className="ui-slug__field">
+                    <div className="ui-slug__field-label">{field.label}</div>
+                    <div className="ui-slug__field-value">{field.value}</div>
                   </div>
                 ))}
               </div>
@@ -178,17 +308,17 @@ export function SignalSlug({ signal, isExpanded, onToggle, onShowOnChart, onTake
           <div className="ui-slug__section-title">Trade Plan</div>
           <div className="ui-slug__plan">
             <div className="ui-slug__plan-row">
-              <span className="ui-slug__plan-label">Entry Zone</span>
+              <span className="ui-slug__plan-label">{isHold ? 'Reference' : 'Entry Zone'}</span>
               <span className="ui-slug__plan-value">{fmtPrice(signal.entry_price)}</span>
             </div>
             <div className="ui-slug__plan-row">
-              <span className="ui-slug__plan-label">Target</span>
+              <span className="ui-slug__plan-label">{isHold ? 'Resistance' : 'Target'}</span>
               <span className="ui-slug__plan-value ui-slug__plan-value--green">
                 {fmtPrice(signal.target_price)} {ctx?.levels?.target_pct && <small>({ctx.levels.target_pct})</small>}
               </span>
             </div>
             <div className="ui-slug__plan-row">
-              <span className="ui-slug__plan-label">Stop Loss</span>
+              <span className="ui-slug__plan-label">{isHold ? 'Support' : 'Stop Loss'}</span>
               <span className="ui-slug__plan-value ui-slug__plan-value--red">
                 {fmtPrice(signal.stop_price)} {ctx?.levels?.stop_pct && <small>({ctx.levels.stop_pct})</small>}
               </span>
@@ -222,21 +352,6 @@ export function SignalSlug({ signal, isExpanded, onToggle, onShowOnChart, onTake
               </div>
             )}
           </div>
-
-          {/* EMBED FIELDS (extra data from Discord embed) */}
-          {ctx?.embed_fields && ctx.embed_fields.length > 0 && (
-            <>
-              <div className="ui-slug__section-title">Intelligence Data</div>
-              <div className="ui-slug__fields">
-                {ctx.embed_fields.map((field, i) => (
-                  <div key={i} className="ui-slug__field">
-                    <div className="ui-slug__field-label">{field.label}</div>
-                    <div className="ui-slug__field-value">{field.value}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
 
           {/* WARNINGS */}
           {signal.warnings && signal.warnings.length > 0 && (

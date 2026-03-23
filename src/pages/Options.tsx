@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { optionsApi } from '../lib/api';
@@ -38,7 +39,9 @@ interface OptionsFlowResponse {
 }
 
 export function Options() {
-  const [symbol, setSymbol] = useState<string>('SPY');
+  const [searchParams] = useSearchParams();
+  const initialSymbol = searchParams.get('symbol')?.toUpperCase() || 'SPY';
+  const [symbol, setSymbol] = useState<string>(initialSymbol);
   const [data, setData] = useState<OptionsFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -16,6 +16,7 @@ const NAV_ITEMS = [
     { path: '/gamma', label: 'Gamma', icon: '📈' },
     { path: '/squeeze', label: 'Squeeze', icon: '🔥' },
     { path: '/options', label: 'Options', icon: '⚡' },
+    { path: '/live', label: 'Live Session', icon: '🛡️' },
 ];
 
 export function NavBar() {

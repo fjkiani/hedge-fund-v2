@@ -15,8 +15,11 @@ import { FinnhubNewsPanel } from '../components/agentx/panels/FinnhubNewsPanel';
 import { HotTickersStrip } from '../components/agentx/panels/HotTickersStrip';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { useIntradaySnapshot } from '../hooks/useIntradaySnapshot';
 
 export function Politicians() {
+    const { snapshot: intradaySnap } = useIntradaySnapshot();
+    const thesisValid = intradaySnap ? (intradaySnap.thesis_valid || !intradaySnap.market_open) : true;
     const { report, loading, error, lastRefresh, refresh } = useAgentXReport();
 
     /* Loading */
@@ -66,7 +69,25 @@ export function Politicians() {
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-            <div className="space-y-6">
+            {/* Thesis Invalid Banner */}
+            {!thesisValid && (
+              <div style={{
+                width: '100%', padding: '1rem 1.5rem', marginBottom: '1rem',
+                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                border: '2px solid #ef4444', borderRadius: '0.75rem',
+                color: '#ffffff', boxShadow: '0 0 20px rgba(220, 38, 38, 0.25)',
+              }}>
+                <div style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                  ⛔ THESIS INVALIDATED — trade signals below may be stale
+                </div>
+                {intradaySnap?.thesis_invalidation_reason && (
+                  <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+                    {intradaySnap.thesis_invalidation_reason}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-6" style={{ opacity: thesisValid ? 1 : 0.6, transition: 'opacity 0.3s' }}>
                 {/* Page header */}
                 <div style={{ marginBottom: '0.5rem' }}>
                     <h1 style={{

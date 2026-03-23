@@ -36,6 +36,10 @@
     @apply bg-bg-primary text-text-primary font-sans antialiased;
     margin: 0;
     padding: 0;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(0, 212, 255, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(255, 51, 102, 0.03) 0%, transparent 50%);
+    background-attachment: fixed;
   }
   
   /* Custom scrollbar */
@@ -104,5 +108,40 @@
   
   .glow-purple {
     @apply shadow-glow-purple;
+  }
+
+  /* ── Data-Linker inspired utilities ── */
+  .glass-panel {
+    @apply bg-bg-secondary/60 backdrop-blur-xl border border-border-subtle/50;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-card {
+    @apply bg-bg-secondary/80 backdrop-blur-md border border-border-subtle/60 rounded-xl;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .neon-text-green {
+    color: #00ff88;
+    filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.4));
+  }
+
+  .neon-text-red {
+    color: #ff3366;
+    filter: drop-shadow(0 0 8px rgba(255, 51, 102, 0.4));
+  }
+
+  .neon-text-gold {
+    color: #ffd700;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+  }
+
+  .neon-text-blue {
+    color: #00d4ff;
+    filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+  }
+
+  .data-number {
+    @apply font-mono tracking-tight;
   }
 }

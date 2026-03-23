@@ -9,6 +9,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 
 import { useAgentXReport } from './hooks/useAgentXReport';
+import { useIntradaySnapshot } from '../../hooks/useIntradaySnapshot';
 import { ConvictionHeader } from './panels/ConvictionHeader';
 import { PoliticianTradesPanel } from './panels/PoliticianTradesPanel';
 import { InsiderTradesPanel } from './panels/InsiderTradesPanel';
@@ -18,6 +19,8 @@ import { HotTickersStrip } from './panels/HotTickersStrip';
 
 export function AgentXDashboard() {
     const { report, loading, error, lastRefresh, refresh } = useAgentXReport();
+    const { snapshot: intradaySnap } = useIntradaySnapshot();
+    const thesisValid = intradaySnap ? (intradaySnap.thesis_valid || !intradaySnap.market_open) : true;
 
     /* Loading */
     if (loading && !report) {
@@ -65,6 +68,27 @@ export function AgentXDashboard() {
     /* ── Layout: compose panels ────────────────────── */
     return (
         <div className="space-y-6">
+            {/* Thesis Invalid Warning */}
+            {!thesisValid && (
+                <div style={{
+                    width: '100%',
+                    padding: '0.75rem 1.25rem',
+                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                    border: '2px solid #ef4444',
+                    borderRadius: '0.75rem',
+                    color: '#ffffff',
+                    boxShadow: '0 0 15px rgba(220, 38, 38, 0.2)',
+                }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>
+                        ⛔ THESIS INVALIDATED — conviction signals may be unreliable
+                    </div>
+                    {intradaySnap?.thesis_invalidation_reason && (
+                        <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '0.15rem' }}>
+                            {intradaySnap.thesis_invalidation_reason}
+                        </div>
+                    )}
+                </div>
+            )}
             <ConvictionHeader
                 report={report}
                 loading={loading}

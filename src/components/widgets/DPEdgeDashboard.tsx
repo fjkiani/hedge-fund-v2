@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+import { motion } from 'framer-motion';
 import { dpApi } from '../../lib/api';
 import { DPPatternCard } from './DPPatternCard';
 
@@ -14,22 +13,6 @@ interface DPEdgeStats {
   cumulative_pnl: number;
 }
 
-interface DPDivergenceSignal {
-  symbol: string;
-  direction: string;
-  signal_type: string;
-  confidence: number;
-  entry_price: number;
-  stop_pct: number;
-  target_pct: number;
-  reasoning: string;
-  dp_bias: string;
-  options_bias?: string;
-  dp_strength: number;
-  has_divergence: boolean;
-  timestamp: string;
-}
-
 interface DPPrediction {
   symbol: string;
   bounce_probability: number | null;
@@ -41,10 +24,50 @@ interface DPPrediction {
   recent_breaks?: number;
 }
 
+/* ── StatCard with gradient blob (Data-Linker pattern) ── */
+function StatCard({ title, value, subtitle, intent = 'neutral', delay = 0 }: {
+  title: string;
+  value: string | React.ReactNode;
+  subtitle?: string;
+  intent?: 'neutral' | 'success' | 'danger' | 'gold';
+  delay?: number;
+}) {
+  const intentColors = {
+    neutral: { text: 'text-text-primary', blob: '#a0a0b0' },
+    success: { text: 'neon-text-green', blob: '#00ff88' },
+    danger:  { text: 'neon-text-red',   blob: '#ff3366' },
+    gold:    { text: 'neon-text-gold',  blob: '#ffd700' },
+  };
+  const { text, blob } = intentColors[intent];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: 'easeOut' }}
+      className="glass-card p-5 relative overflow-hidden group hover:border-border-active transition-colors duration-300"
+    >
+      {/* Decorative gradient blob */}
+      <div
+        className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl transition-opacity duration-500 group-hover:opacity-20"
+        style={{ backgroundColor: blob, opacity: 0.08 }}
+      />
+      <div className="relative z-10">
+        <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">{title}</h3>
+        <div className={`text-3xl font-display font-bold data-number ${text}`}>
+          {value}
+        </div>
+        {subtitle && (
+          <p className="mt-2 text-xs text-text-muted font-mono">{subtitle}</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 export function DPEdgeDashboard() {
   const [stats, setStats] = useState<DPEdgeStats | null>(null);
-  const [signals, setSignals] = useState<DPDivergenceSignal[]>([]);
-  const [patterns, setPatterns] = useState<any[]>([]);
+  const [patterns, setPatterns] = useState<any[] | null>(null);
   const [prediction, setPrediction] = useState<DPPrediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,16 +82,12 @@ export function DPEdgeDashboard() {
     try {
       setLoading(true);
       setError(null);
-
-      const [statsRes, signalsRes, patternsRes, predictionRes] = await Promise.allSettled([
+      const [statsRes, patternsRes, predictionRes] = await Promise.allSettled([
         dpApi.getEdgeStats(),
-        dpApi.getDivergenceSignals(),
         dpApi.getPatterns(),
         dpApi.getPrediction('SPY'),
       ]);
-
       if (statsRes.status === 'fulfilled') setStats(statsRes.value as DPEdgeStats);
-      if (signalsRes.status === 'fulfilled') setSignals((signalsRes.value as any).signals || []);
       if (patternsRes.status === 'fulfilled') setPatterns((patternsRes.value as any).patterns || []);
       if (predictionRes.status === 'fulfilled') setPrediction(predictionRes.value as DPPrediction);
     } catch (err) {
@@ -78,251 +97,222 @@ export function DPEdgeDashboard() {
     }
   };
 
-  const getSignalTier = (confidence: number): 'MASTER' | 'HIGH' | 'WATCH' => {
-    if (confidence >= 75) return 'MASTER';
-    if (confidence >= 60) return 'HIGH';
-    return 'WATCH';
-  };
-
-  const getTierColor = (tier: string): string => {
-    switch (tier) {
-      case 'MASTER': return 'border-accent-gold/50 bg-accent-gold/10';
-      case 'HIGH': return 'border-accent-orange/50 bg-accent-orange/10';
-      default: return 'border-accent-blue/50 bg-accent-blue/10';
-    }
-  };
-
-  const getTierBadge = (tier: string): string => {
-    switch (tier) {
-      case 'MASTER': return '🎯';
-      case 'HIGH': return '⚡';
-      default: return '📊';
-    }
-  };
-
   if (loading && !stats) {
     return (
-      <Card>
-        <div className="card-header">
-          <h2 className="card-title">🔥 DP Edge Dashboard</h2>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="glass-panel rounded-xl p-6"
+      >
+        <h2 className="text-lg font-display font-semibold text-text-primary mb-4">🔥 DP Edge Dashboard</h2>
+        <div className="flex items-center justify-center gap-3 py-10 text-text-muted">
+          <div className="w-8 h-8 border-4 border-bg-tertiary rounded-full relative">
+            <div className="absolute inset-0 border-4 border-accent-blue border-t-transparent rounded-full animate-spin" />
+          </div>
+          <p className="font-mono text-sm animate-pulse">Loading DP edge data…</p>
         </div>
-        <div className="text-text-secondary text-center py-8">Loading...</div>
-      </Card>
+      </motion.div>
     );
   }
 
   if (error) {
     return (
-      <Card>
-        <div className="card-header">
-          <h2 className="card-title">🔥 DP Edge Dashboard</h2>
+      <div className="glass-panel rounded-xl p-6">
+        <h2 className="text-lg font-display font-semibold text-text-primary mb-4">🔥 DP Edge Dashboard</h2>
+        <div className="text-accent-red text-center py-8 text-sm">
+          ⚠ {error}
+          <button onClick={loadData} className="text-xs text-accent-blue underline ml-2">Retry</button>
         </div>
-        <div className="text-accent-red text-center py-8">Error: {error}</div>
-      </Card>
+      </div>
     );
   }
 
+  // Compute directional bias
+  const getBias = () => {
+    if (!prediction || prediction.bounce_probability === null) {
+      return { label: 'NO DATA', sublabel: 'Insufficient interactions', color: 'text-text-muted', bg: 'bg-bg-tertiary/30', border: 'border-border-subtle' };
+    }
+    const bp = prediction.bounce_probability;
+    if (bp >= 70) return {
+      label: 'BULLISH ABSORPTION',
+      sublabel: `${bp}% bounce rate · ${prediction.recent_interactions} recent interactions`,
+      color: 'neon-text-green',
+      bg: 'bg-accent-green/5',
+      border: 'border-accent-green/20',
+    };
+    if (bp <= 40) return {
+      label: 'BEARISH BREAKDOWN',
+      sublabel: `${bp}% bounce rate — levels failing`,
+      color: 'neon-text-red',
+      bg: 'bg-accent-red/5',
+      border: 'border-accent-red/20',
+    };
+    return {
+      label: 'NEUTRAL — NO EDGE',
+      sublabel: `${bp}% bounce rate · mixed signals`,
+      color: 'text-accent-gold',
+      bg: 'bg-accent-gold/5',
+      border: 'border-accent-gold/20',
+    };
+  };
+
+  const bias = getBias();
+
   return (
-    <Card>
-      <div className="card-header">
-        <h2 className="card-title">🔥 DP Edge Dashboard</h2>
-        <Badge variant="bullish">PROVEN EDGE</Badge>
-      </div>
-
-      {/* Win Rate Display */}
-      {stats && (
-        <div className="mb-6">
-          <div className="text-center mb-4">
-            <div className="text-5xl font-bold text-accent-gold mb-2">
-              {stats.win_rate.toFixed(1)}%
-            </div>
-            <div className="text-text-secondary text-sm">Win Rate (PROVEN)</div>
-            <div className="text-text-muted text-xs mt-1">
-              {stats.bounces} wins / {stats.breaks} losses
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-bg-tertiary rounded-lg p-3 text-center">
-              <div className="text-text-muted text-xs mb-1">Total Trades</div>
-              <div className="text-lg font-semibold">{stats.total_interactions}</div>
-            </div>
-            <div className="bg-bg-tertiary rounded-lg p-3 text-center">
-              <div className="text-text-muted text-xs mb-1">Break-even R/R</div>
-              <div className="text-lg font-semibold text-accent-green">
-                {stats.breakeven_rr.toFixed(3)}
-              </div>
-            </div>
-            <div className="bg-bg-tertiary rounded-lg p-3 text-center">
-              <div className="text-text-muted text-xs mb-1">EV per Trade</div>
-              <div className="text-lg font-semibold text-accent-green">
-                +{stats.expected_pnl_per_trade.toFixed(4)}%
-              </div>
-            </div>
-          </div>
-
-          {/* Bounces vs Breaks Bar */}
-          <div className="mb-4">
-            <div className="text-text-secondary text-xs mb-2">Outcome Distribution</div>
-            <div className="flex h-6 rounded overflow-hidden">
-              <div
-                className="bg-accent-green flex items-center justify-center text-xs font-semibold"
-                style={{ width: `${(stats.bounces / stats.total_interactions) * 100}%` }}
-              >
-                {stats.bounces}
-              </div>
-              <div
-                className="bg-accent-red flex items-center justify-center text-xs font-semibold"
-                style={{ width: `${(stats.breaks / stats.total_interactions) * 100}%` }}
-              >
-                {stats.breaks}
-              </div>
-            </div>
-            <div className="flex justify-between text-xs text-text-muted mt-1">
-              <span>Bounces (Wins)</span>
-              <span>Breaks (Losses)</span>
-            </div>
-          </div>
-
-          {/* DP Prediction Badge */}
-          {prediction && prediction.bounce_probability !== null && (
-            <div className={`flex items-center justify-between p-3 rounded-lg border ${prediction.action === 'BUY' ? 'border-accent-green/30 bg-accent-green/5' :
-                prediction.action === 'SELL' ? 'border-accent-red/30 bg-accent-red/5' :
-                  'border-accent-blue/30 bg-accent-blue/5'
-              }`}>
-              <div className="flex items-center gap-3">
-                <span className="text-xl">
-                  {prediction.action === 'BUY' ? '🟢' : prediction.action === 'SELL' ? '🔴' : '🟡'}
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-text-primary">
-                    {prediction.symbol} — {prediction.action}
-                  </div>
-                  <div className="text-xs text-text-muted">
-                    {prediction.reasoning.slice(0, 80)}...
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-lg font-bold" style={{
-                  color: prediction.bounce_probability >= 75 ? '#00ff88' :
-                    prediction.bounce_probability >= 50 ? '#ffd700' : '#ff3366'
-                }}>
-                  {prediction.bounce_probability}%
-                </div>
-                <div className="text-[10px] text-text-muted">bounce prob</div>
-              </div>
-            </div>
-          )}
+    <div className="glass-panel rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle/50">
+        <div>
+          <h2 className="text-lg font-display font-semibold text-text-primary flex items-center gap-2">
+            🔥 DP Edge Dashboard
+          </h2>
+          <p className="text-xs text-text-muted font-mono mt-0.5">
+            DP level reaction analysis · {stats?.total_interactions ?? 0} interactions tracked
+          </p>
         </div>
-      )}
-
-      {/* Live Signals Feed */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-text-primary">Live Signals</h3>
-          <Badge variant="neutral">{signals.length} Active</Badge>
-        </div>
-
-        {signals.length === 0 ? (
-          <div className="text-text-muted text-sm text-center py-4">
-            No active signals (waiting for setup)
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {signals.map((signal, idx) => {
-              const tier = getSignalTier(signal.confidence);
-              return (
-                <div key={idx} className={`p-4 rounded-lg border ${getTierColor(tier)}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{getTierBadge(tier)}</span>
-                      <span className="font-semibold text-text-primary">{signal.symbol}</span>
-                      <Badge variant={signal.direction === 'LONG' ? 'bullish' : 'bearish'}>
-                        {signal.direction}
-                      </Badge>
-                      <Badge variant="neutral">{signal.confidence}%</Badge>
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-text-secondary mb-2">
-                    {signal.signal_type === 'DP_CONFLUENCE' ? (
-                      <span className="text-accent-gold">🎯 DP Confluence</span>
-                    ) : (
-                      <span className="text-accent-orange">⚡ Options Divergence</span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-xs mb-2">
-                    <div>
-                      <span className="text-text-muted">Entry:</span>{' '}
-                      <span className="text-text-primary">${signal.entry_price.toFixed(2)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Stop:</span>{' '}
-                      <span className="text-accent-red">-{signal.stop_pct.toFixed(2)}%</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Target:</span>{' '}
-                      <span className="text-accent-green">+{signal.target_pct.toFixed(2)}%</span>
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-text-muted">{signal.reasoning}</div>
-
-                  {signal.options_bias && (
-                    <div className="mt-2 text-xs">
-                      <span className="text-text-muted">DP:</span> {signal.dp_bias} |{' '}
-                      <span className="text-text-muted">Options:</span> {signal.options_bias}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {stats && stats.total_interactions >= 100 && (
+          <span className="badge badge-bullish text-xs font-bold">PROVEN EDGE</span>
         )}
       </div>
 
-      {/* Signal Type Breakdown */}
-      {signals.length > 0 && (
-        <div className="mb-4">
-          <div className="text-text-secondary text-xs mb-2">Signal Type Breakdown</div>
-          <div className="space-y-2">
-            {['DP_CONFLUENCE', 'OPTIONS_DIVERGENCE'].map((type) => {
-              const typeSignals = signals.filter((s) => s.signal_type === type);
-              if (typeSignals.length === 0) return null;
-              return (
-                <div key={type} className="flex items-center justify-between text-xs">
-                  <span className="text-text-secondary">
-                    {type === 'DP_CONFLUENCE' ? '🎯 DP Confluence' : '⚡ Options Divergence'}:
-                  </span>
-                  <span className="text-text-primary font-semibold">
-                    {typeSignals.length} signal{typeSignals.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <div className="p-5 space-y-5">
+        {stats && (
+          <>
+            {/* Hero Bounce Rate — big number with neon glow */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="text-center py-2"
+            >
+              <div className="text-6xl font-bold neon-text-gold data-number mb-1">
+                {stats.win_rate.toFixed(1)}%
+              </div>
+              <div className="text-text-secondary text-sm font-mono">DP Level Bounce Rate</div>
+              <div className="text-text-muted text-xs mt-1">
+                {stats.bounces} bounces / {stats.breaks} breaks
+              </div>
+              <div className="text-text-muted/50 text-[10px] mt-2 italic max-w-xs mx-auto">
+                Backtested on {stats.total_interactions.toLocaleString()} historical DP level interactions. Past performance not indicative of future results.
+              </div>
+            </motion.div>
 
-      {/* Learned Patterns Table */}
-      <div className="mb-4">
-        <DPPatternCard patterns={patterns} loading={loading && patterns.length === 0} />
+            {/* Stat Cards Grid — Data-Linker pattern */}
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard
+                title="Level Interactions"
+                value={stats.total_interactions.toLocaleString()}
+                delay={0.1}
+              />
+              <StatCard
+                title="Break-even R/R"
+                value={stats.breakeven_rr.toFixed(3)}
+                intent="success"
+                delay={0.2}
+              />
+              <StatCard
+                title="Avg Edge"
+                value={`+${stats.expected_pnl_per_trade.toFixed(4)}%`}
+                subtitle="Per interaction"
+                intent="success"
+                delay={0.3}
+              />
+            </div>
+
+            {/* Outcome Distribution Bar */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              <div className="text-text-muted text-xs font-mono uppercase tracking-wider mb-2">
+                Outcome Distribution
+              </div>
+              <div className="flex h-7 rounded-lg overflow-hidden">
+                <div
+                  className="flex items-center justify-center text-xs font-bold"
+                  style={{
+                    width: `${(stats.bounces / stats.total_interactions) * 100}%`,
+                    backgroundColor: '#00ff88',
+                    color: '#0a0a0f',
+                  }}
+                >
+                  {stats.bounces}
+                </div>
+                <div
+                  className="flex items-center justify-center text-xs font-bold"
+                  style={{
+                    width: `${(stats.breaks / stats.total_interactions) * 100}%`,
+                    backgroundColor: '#ff3366',
+                    color: '#ffffff',
+                  }}
+                >
+                  {stats.breaks}
+                </div>
+              </div>
+              <div className="flex justify-between text-xs text-text-muted mt-1 font-mono">
+                <span>Bounces (Level Held)</span>
+                <span>Breaks (Level Failed)</span>
+              </div>
+            </motion.div>
+
+            {/* Directional Bias Banner — Data-Linker regime banner pattern */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className={`flex items-center justify-between p-4 rounded-xl border ${bias.border} ${bias.bg}`}
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-text-muted mb-1">
+                  Directional Bias
+                </div>
+                <div className={`text-xl font-display font-bold ${bias.color}`}>
+                  {bias.label}
+                </div>
+                <div className="text-xs text-text-muted mt-1">{bias.sublabel}</div>
+              </div>
+              {prediction && prediction.bounce_probability !== null && (
+                <div className="text-right shrink-0">
+                  <div className="text-3xl font-bold data-number" style={{
+                    color: prediction.bounce_probability >= 70 ? '#00ff88' :
+                      prediction.bounce_probability >= 40 ? '#ffd700' : '#ff3366',
+                    filter: `drop-shadow(0 0 8px ${
+                      prediction.bounce_probability >= 70 ? 'rgba(0,255,136,0.4)' :
+                      prediction.bounce_probability >= 40 ? 'rgba(255,215,0,0.4)' : 'rgba(255,51,102,0.4)'
+                    })`,
+                  }}>
+                    {prediction.bounce_probability}%
+                  </div>
+                  <div className="text-[10px] text-text-muted font-mono">bounce prob</div>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+
+        {/* Learned Patterns */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <DPPatternCard patterns={patterns || []} loading={loading && !patterns} />
+        </motion.div>
       </div>
 
-      <div className="card-footer">
-        <span className="text-text-muted">
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-border-subtle/50 flex items-center justify-between text-xs">
+        <span className="text-text-muted font-mono">
           Updated {stats ? new Date().toLocaleTimeString() : 'Never'}
         </span>
         <button
           onClick={loadData}
-          className="text-accent-blue hover:text-accent-blue/80 text-sm"
+          className="text-accent-blue hover:text-accent-blue/80 text-sm font-medium transition-colors"
         >
           Refresh
         </button>
       </div>
-    </Card>
+    </div>
   );
 }

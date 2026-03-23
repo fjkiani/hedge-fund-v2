@@ -12,6 +12,7 @@ import { AXLFIIntel } from './pages/AXLFIIntel';
 import { Gamma } from './pages/Gamma';
 import { Squeeze } from './pages/Squeeze';
 import { Options } from './pages/Options';
+import { LiveSession } from './pages/LiveSession';
 import './index.css';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
         <Route path="/gamma" element={<Gamma />} />
         <Route path="/squeeze" element={<Squeeze />} />
         <Route path="/options" element={<Options />} />
+        <Route path="/live" element={<LiveSession />} />
       </Routes>
     </BrowserRouter>
   );

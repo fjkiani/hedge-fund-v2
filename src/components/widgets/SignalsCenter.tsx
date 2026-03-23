@@ -10,6 +10,9 @@ interface SignalResponse {
   count: number;
   master_count: number;
   timestamp: string;
+  regime_tier?: number;
+  regime_veto?: boolean;
+  reason?: string;
 }
 
 export function SignalsCenter() {
@@ -20,6 +23,7 @@ export function SignalsCenter() {
   const [filter, setFilter] = useState<'all' | 'master' | 'high'>('all');
   const [dpConfluence, setDpConfluence] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [regimeTier, setRegimeTier] = useState<number>(1);
 
   useEffect(() => {
     loadSignals();
@@ -39,7 +43,10 @@ export function SignalsCenter() {
         signalsApi.getMaster() as Promise<SignalResponse>
       ]);
 
-      if (allRes.status === 'fulfilled') setSignals(allRes.value?.signals || []);
+      if (allRes.status === 'fulfilled') {
+        setSignals(allRes.value?.signals || []);
+        setRegimeTier(allRes.value?.regime_tier ?? 1);
+      }
       if (masterRes.status === 'fulfilled') setMasterSignals(masterRes.value?.signals || []);
       setError(null);
     } catch {
@@ -126,6 +133,35 @@ export function SignalsCenter() {
           <Badge variant="bullish">{masterSignals.length} Master</Badge>
         </div>
       </div>
+
+      {/* Regime Badge */}
+      {(() => {
+        const badgeConfig: Record<number, { label: string; bg: string; color: string; border: string }> = {
+          1: { label: 'TIER 1 — CALM', bg: 'rgba(0, 200, 83, 0.1)', color: '#00c853', border: 'rgba(0, 200, 83, 0.3)' },
+          2: { label: 'TIER 2 — LONGS PERMITTED', bg: 'rgba(0, 200, 83, 0.1)', color: '#00c853', border: 'rgba(0, 200, 83, 0.3)' },
+          3: { label: 'TIER 3 — LONGS SUPPRESSED', bg: 'rgba(255, 165, 0, 0.12)', color: '#ffa726', border: 'rgba(255, 165, 0, 0.3)' },
+          4: { label: 'REGIME VETO — ALL SIGNALS SUPPRESSED', bg: 'rgba(255, 50, 50, 0.15)', color: '#ff5252', border: 'rgba(255, 50, 50, 0.4)' },
+        };
+        const cfg = badgeConfig[regimeTier] || badgeConfig[1];
+        const isTier4 = regimeTier >= 4;
+        return (
+          <div style={{
+            padding: isTier4 ? '10px 16px' : '6px 12px',
+            marginBottom: '12px',
+            borderRadius: '8px',
+            background: cfg.bg,
+            border: `1px solid ${cfg.border}`,
+            color: cfg.color,
+            fontSize: isTier4 ? '13px' : '11px',
+            fontWeight: 700,
+            letterSpacing: '1.2px',
+            textAlign: isTier4 ? 'center' : 'left',
+            fontFamily: 'var(--font-mono, monospace)',
+          }}>
+            {isTier4 ? '🚨 ' : '◈ '}{cfg.label}
+          </div>
+        );
+      })()}
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">

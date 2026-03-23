@@ -73,6 +73,7 @@ export function SessionMemoryPanel() {
                     {dc?.risk_assessment || 'UNKNOWN'} RISK
                 </span>
             </div>
+            <p className="text-[11px] text-text-muted/80 italic px-4 pb-1">What the market did yesterday shapes today's setup. Institutional flows persist across sessions — trapped positions from yesterday become today's fuel.</p>
 
             <div className="space-y-3">
                 {/* Outlook + Regime */}
@@ -111,6 +112,7 @@ export function SessionMemoryPanel() {
 
             <div className="card-footer">
                 <span className="text-text-muted">Cross-Session Memory</span>
+                <span className="text-[10px] text-text-muted/60 italic">Themes that persist across days carry more weight</span>
             </div>
         </Card>
     );

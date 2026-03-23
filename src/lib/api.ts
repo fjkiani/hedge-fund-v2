@@ -291,3 +291,7 @@ export const briefApi = {
   },
 };
 
+export const intradayApi = {
+  snapshot: () => api.get('/intraday/snapshot'),
+};
+
