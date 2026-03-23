@@ -1,43 +1,39 @@
 /**
- * 🏛️ Politicians Page — "What are they buying, and do insiders agree?"
+ * 🏛️ Politicians Page — Tactical Intelligence V3.2
  *
- * Surfaces politician trades, Finnhub convergence/divergence signals,
- * spouse alerts, insider trades, and news catalysts.
+ * Layout: Header + Spouse Banner + 12-col grid (Feed 7-col + Convergence 5-col)
+ * + AiBriefingPanel overlay
+ *
+ * Zero hardcoded data. Everything from useAgentXReport().
  */
 
+import { useState } from 'react';
 import { useAgentXReport } from '../components/agentx/hooks/useAgentXReport';
-import { ConvictionHeader } from '../components/agentx/panels/ConvictionHeader';
-import { PoliticianTradesPanel } from '../components/agentx/panels/PoliticianTradesPanel';
-import { InsiderTradesPanel } from '../components/agentx/panels/InsiderTradesPanel';
-import { FinnhubConvergencePanel } from '../components/agentx/panels/FinnhubConvergencePanel';
-import { SpouseAlertBanner } from '../components/agentx/panels/SpouseAlertBanner';
-import { FinnhubNewsPanel } from '../components/agentx/panels/FinnhubNewsPanel';
-import { HotTickersStrip } from '../components/agentx/panels/HotTickersStrip';
-import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import { useIntradaySnapshot } from '../hooks/useIntradaySnapshot';
+import { SpouseAlertBanner } from '../components/agentx/panels/SpouseAlertBanner';
+import { PoliticianFeedPanel } from '../components/agentx/panels/PoliticianFeedPanel';
+import { ConvergenceCard } from '../components/agentx/panels/ConvergenceCard';
+import { AiBriefingPanel } from '../components/agentx/panels/AiBriefingPanel';
+import { ConvictionDisplay } from '../components/agentx/primitives/ConvictionDisplay';
+import { MetricBadge } from '../components/agentx/primitives/MetricBadge';
+import type { BriefableItem } from '../components/agentx/panels/AiBriefingPanel';
+import type { TradeItemData } from '../components/agentx/panels/TradeItemPanel';
+import type { FinnhubSignal } from '../components/agentx/types';
 
 export function Politicians() {
+    const { report, loading, error, lastRefresh, refresh } = useAgentXReport();
     const { snapshot: intradaySnap } = useIntradaySnapshot();
     const thesisValid = intradaySnap ? (intradaySnap.thesis_valid || !intradaySnap.market_open) : true;
-    const { report, loading, error, lastRefresh, refresh } = useAgentXReport();
+    const [activeBrief, setActiveBrief] = useState<BriefableItem | null>(null);
 
     /* Loading */
     if (loading && !report) {
         return (
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-                <Card>
-                    <div className="card-header">
-                        <h2 className="card-title">🏛️ Politicians — Trade Intelligence</h2>
-                        <Badge variant="neutral">Scanning...</Badge>
-                    </div>
-                    <div className="flex flex-col items-center justify-center h-48 gap-3">
-                        <div className="w-12 h-12 border-4 border-accent-purple border-t-transparent rounded-full animate-spin" />
-                        <span className="text-text-muted text-sm animate-pulse">
-                            Scanning politician trades, insider sentiment, Finnhub MSPR...
-                        </span>
-                    </div>
-                </Card>
+            <div className="agentx-loading">
+                <div className="agentx-loading__spinner" />
+                <span className="agentx-loading__text">
+                    Scanning politician trades, insider sentiment, Finnhub MSPR...
+                </span>
             </div>
         );
     }
@@ -45,91 +41,126 @@ export function Politicians() {
     /* Error */
     if (error && !report) {
         return (
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-                <Card>
-                    <div className="card-header">
-                        <h2 className="card-title">🏛️ Politicians</h2>
-                        <Badge variant="bearish">Error</Badge>
-                    </div>
-                    <div className="p-4 text-red-400 text-sm font-mono">
-                        {error}
-                        <button
-                            onClick={refresh}
-                            className="ml-4 px-3 py-1 bg-red-500/20 rounded hover:bg-red-500/30 transition"
-                        >
-                            Retry
-                        </button>
-                    </div>
-                </Card>
+            <div className="agentx-error">
+                <span className="agentx-error__text">{error}</span>
+                <button onClick={refresh} className="agentx-error__retry">Retry</button>
             </div>
         );
     }
 
     if (!report) return null;
 
+    const signals = report.finnhub_signals || [];
+    const divergenceCount = signals.filter(s => s.convergence === 'DIVERGENCE').length;
+
+    const handleTradeClick = (trade: TradeItemData) => {
+        setActiveBrief(trade as BriefableItem);
+    };
+
+    const handleConvergenceClick = (signal: FinnhubSignal) => {
+        setActiveBrief({
+            ticker: signal.ticker,
+            signal: signal.convergence,
+            logic: signal.reasoning?.[0] || signal.convergence,
+            meaning: signal.reasoning?.slice(1).join(' ') || '',
+            slug: `conv-${signal.ticker}`,
+        } as BriefableItem);
+    };
+
     return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-            {/* Thesis Invalid Banner */}
+        <div className="politicians-page">
+            {/* Thesis invalid */}
             {!thesisValid && (
-              <div style={{
-                width: '100%', padding: '1rem 1.5rem', marginBottom: '1rem',
-                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                border: '2px solid #ef4444', borderRadius: '0.75rem',
-                color: '#ffffff', boxShadow: '0 0 20px rgba(220, 38, 38, 0.25)',
-              }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                  ⛔ THESIS INVALIDATED — trade signals below may be stale
+                <div className="agentx-thesis-warning">
+                    ⛔ THESIS INVALIDATED — trade signals may be stale
+                    {intradaySnap?.thesis_invalidation_reason && (
+                        <div className="agentx-thesis-warning__reason">
+                            {intradaySnap.thesis_invalidation_reason}
+                        </div>
+                    )}
                 </div>
-                {intradaySnap?.thesis_invalidation_reason && (
-                  <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
-                    {intradaySnap.thesis_invalidation_reason}
-                  </div>
-                )}
-              </div>
             )}
-            <div className="space-y-6" style={{ opacity: thesisValid ? 1 : 0.6, transition: 'opacity 0.3s' }}>
-                {/* Page header */}
-                <div style={{ marginBottom: '0.5rem' }}>
-                    <h1 style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 700,
-                        color: '#e2e8f0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                    }}>
-                        🏛️ Politicians
-                    </h1>
-                    <p style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '0.25rem' }}>
-                        Congressional trades, insider convergence, and spouse trade alerts
+
+            {/* Header */}
+            <div className="politicians-page__header">
+                <div className="politicians-page__header-left">
+                    <h2 className="politicians-page__title">Intelligence Signal Grid</h2>
+                    <p className="politicians-page__subtitle">
+                        Intersection of legislative policy and institutional order flow
                     </p>
                 </div>
-
-                <ConvictionHeader
-                    report={report}
-                    loading={loading}
-                    lastRefresh={lastRefresh}
-                    onRefresh={refresh}
-                />
-
-                {/* Spouse alert banner — only shows when spouse trades exist */}
-                <SpouseAlertBanner alerts={report.spouse_alerts || []} />
-
-                <div className="grid grid-cols-2 gap-6">
-                    <PoliticianTradesPanel hands={report.hidden_hands} />
-                    <FinnhubConvergencePanel signals={report.finnhub_signals || []} />
+                <div className="politicians-page__header-right">
+                    <div className="politicians-page__mini-conviction">
+                        <ConvictionDisplay score={report.divergence_boost} maxScore={10} />
+                    </div>
+                    <div className="politicians-page__meta-stack">
+                        <MetricBadge label="Boost" value={`+${report.divergence_boost}`} variant="green" />
+                        <MetricBadge label="Tone" value={report.fed_overall_tone || '—'} variant="purple" />
+                        <button onClick={refresh} disabled={loading} className="agentx-sidebar__refresh-btn">
+                            {loading ? '⏳' : '🔄 Refresh'}
+                        </button>
+                        {lastRefresh && (
+                            <span className="agentx-sidebar__timestamp">{lastRefresh.toLocaleTimeString()}</span>
+                        )}
+                    </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                    <InsiderTradesPanel hands={report.hidden_hands} />
-                    <FinnhubNewsPanel news={report.finnhub_news || {}} />
-                </div>
-
-                <HotTickersStrip
-                    tickers={report.hidden_hands.hot_tickers}
-                    timestamp={report.timestamp}
-                />
             </div>
+
+            {/* Spouse Alert Banner */}
+            <SpouseAlertBanner
+                alerts={report.spouse_alerts || []}
+                onTradeClick={handleTradeClick}
+            />
+
+            {/* Main grid */}
+            <div className="politicians-page__grid">
+                {/* Left: Politician Feed */}
+                <div className="politicians-page__feed-col">
+                    <PoliticianFeedPanel
+                        hands={report.hidden_hands}
+                        onTradeClick={handleTradeClick}
+                    />
+                </div>
+
+                {/* Right: Convergence Analysis */}
+                <div className="politicians-page__convergence-col">
+                    <div className="politicians-page__convergence-header">
+                        <span className="politicians-page__convergence-title">Insider Convergence</span>
+                        <span className="politicians-page__convergence-badge">MSPR ENGINE v4</span>
+                    </div>
+
+                    <div className="politicians-page__convergence-cards">
+                        {signals.length > 0 ? (
+                            signals.map((sig, i) => (
+                                <ConvergenceCard key={i} signal={sig} onClick={handleConvergenceClick} />
+                            ))
+                        ) : (
+                            <div className="politicians-page__empty">No Finnhub signals available</div>
+                        )}
+                    </div>
+
+                    {divergenceCount > 0 && (
+                        <div className="politicians-page__divergence-alert">
+                            <span className="politicians-page__divergence-icon">⚡</span>
+                            <div>
+                                <span className="politicians-page__divergence-label">Divergence Alert</span>
+                                <p className="politicians-page__divergence-text">
+                                    System identified {divergenceCount} divergence node{divergenceCount > 1 ? 's' : ''} where
+                                    Politicians are accumulating against insider distribution.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Oracle overlay */}
+            {activeBrief && (
+                <div className="oracle-overlay">
+                    <div className="oracle-overlay__backdrop" onClick={() => setActiveBrief(null)} />
+                    <AiBriefingPanel item={activeBrief} onClose={() => setActiveBrief(null)} />
+                </div>
+            )}
         </div>
     );
 }

@@ -10,6 +10,8 @@ export interface PoliticianDetail {
     type: string;
     size: string;
     date: string;
+    is_routine?: boolean;
+    owner?: string;
 }
 
 export interface InsiderDetail {

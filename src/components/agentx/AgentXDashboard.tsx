@@ -1,43 +1,38 @@
 /**
- * 🧠 Agent X Dashboard — Thin Orchestrator
+ * 🧠 AgentX Dashboard — Tactical UI V3.1
  *
- * Imports modular panels + custom hook. Zero business logic here.
- * Each panel is independent, reusable, and testable.
+ * Sidebar (ConvictionDisplay + metrics + FocusList)
+ * + Signal Command Feed grid
+ * + AiBriefingPanel overlay
+ *
+ * Zero hardcoded data. Everything from useAgentXReport().
  */
 
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-
+import { useState } from 'react';
 import { useAgentXReport } from './hooks/useAgentXReport';
 import { useIntradaySnapshot } from '../../hooks/useIntradaySnapshot';
-import { ConvictionHeader } from './panels/ConvictionHeader';
-import { PoliticianTradesPanel } from './panels/PoliticianTradesPanel';
-import { InsiderTradesPanel } from './panels/InsiderTradesPanel';
-import { FedTonePanel } from './panels/FedTonePanel';
-import { TavilyResearchPanel } from './panels/TavilyResearchPanel';
-import { HotTickersStrip } from './panels/HotTickersStrip';
+import { ConvictionDisplay } from './primitives/ConvictionDisplay';
+import { MetricBadge } from './primitives/MetricBadge';
+import { FocusListPanel } from './panels/FocusListPanel';
+import { SignalFeedGrid } from './panels/SignalFeedGrid';
+import { AiBriefingPanel } from './panels/AiBriefingPanel';
+import type { BriefableItem } from './panels/AiBriefingPanel';
+import type { UnifiedSignal } from './panels/SignalFeedGrid';
 
 export function AgentXDashboard() {
     const { report, loading, error, lastRefresh, refresh } = useAgentXReport();
     const { snapshot: intradaySnap } = useIntradaySnapshot();
     const thesisValid = intradaySnap ? (intradaySnap.thesis_valid || !intradaySnap.market_open) : true;
+    const [activeBrief, setActiveBrief] = useState<BriefableItem | null>(null);
 
     /* Loading */
     if (loading && !report) {
         return (
-            <div className="space-y-6">
-                <Card>
-                    <div className="card-header">
-                        <h2 className="card-title">🧠 Agent X — Hidden Conviction Intelligence</h2>
-                        <Badge variant="neutral">Initializing...</Badge>
-                    </div>
-                    <div className="flex flex-col items-center justify-center h-48 gap-3">
-                        <div className="w-12 h-12 border-4 border-accent-purple border-t-transparent rounded-full animate-spin" />
-                        <span className="text-text-muted text-sm animate-pulse">
-                            Scanning Fed speeches, politician trades, insider flow, Tavily research...
-                        </span>
-                    </div>
-                </Card>
+            <div className="agentx-loading">
+                <div className="agentx-loading__spinner" />
+                <span className="agentx-loading__text">
+                    Scanning Fed speeches, politician trades, insider flow...
+                </span>
             </div>
         );
     }
@@ -45,71 +40,92 @@ export function AgentXDashboard() {
     /* Error */
     if (error && !report) {
         return (
-            <Card>
-                <div className="card-header">
-                    <h2 className="card-title">🧠 Agent X</h2>
-                    <Badge variant="bearish">Error</Badge>
-                </div>
-                <div className="p-4 text-red-400 text-sm font-mono">
-                    {error}
-                    <button
-                        onClick={refresh}
-                        className="ml-4 px-3 py-1 bg-red-500/20 rounded hover:bg-red-500/30 transition"
-                    >
-                        Retry
-                    </button>
-                </div>
-            </Card>
+            <div className="agentx-error">
+                <span className="agentx-error__text">{error}</span>
+                <button onClick={refresh} className="agentx-error__retry">Retry</button>
+            </div>
         );
     }
 
     if (!report) return null;
 
-    /* ── Layout: compose panels ────────────────────── */
+    // Derive metrics from live data
+    const biasLabel = report.hidden_hands.politician_buys > report.hidden_hands.politician_sells ? 'LONG' : 'SHORT';
+    const biasVariant = biasLabel === 'LONG' ? 'green' as const : 'red' as const;
+    const clusterCount = report.finnhub_signals?.length || 0;
+
+    const handleSignalClick = (signal: UnifiedSignal) => {
+        setActiveBrief(signal as BriefableItem);
+    };
+
     return (
-        <div className="space-y-6">
-            {/* Thesis Invalid Warning */}
+        <div className="agentx-layout">
+            {/* Thesis invalid */}
             {!thesisValid && (
-                <div style={{
-                    width: '100%',
-                    padding: '0.75rem 1.25rem',
-                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                    border: '2px solid #ef4444',
-                    borderRadius: '0.75rem',
-                    color: '#ffffff',
-                    boxShadow: '0 0 15px rgba(220, 38, 38, 0.2)',
-                }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>
-                        ⛔ THESIS INVALIDATED — conviction signals may be unreliable
-                    </div>
+                <div className="agentx-thesis-warning">
+                    ⛔ THESIS INVALIDATED — conviction signals may be unreliable
                     {intradaySnap?.thesis_invalidation_reason && (
-                        <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '0.15rem' }}>
+                        <div className="agentx-thesis-warning__reason">
                             {intradaySnap.thesis_invalidation_reason}
                         </div>
                     )}
                 </div>
             )}
-            <ConvictionHeader
-                report={report}
-                loading={loading}
-                lastRefresh={lastRefresh}
-                onRefresh={refresh}
-            />
 
-            <div className="grid grid-cols-2 gap-6">
-                <PoliticianTradesPanel hands={report.hidden_hands} />
-                <InsiderTradesPanel hands={report.hidden_hands} />
-            </div>
+            {/* Sidebar */}
+            <aside className="agentx-sidebar">
+                <div className="agentx-sidebar__panel">
+                    <div className="agentx-sidebar__title-row">
+                        <h2 className="agentx-sidebar__title">Agent X</h2>
+                        <span className="agentx-sidebar__subtitle">Oracle Node</span>
+                    </div>
 
-            <div className="grid grid-cols-2 gap-6">
-                <FedTonePanel report={report} />
-                <TavilyResearchPanel context={report.tavily_context} />
-            </div>
+                    <ConvictionDisplay score={report.divergence_boost} />
 
-            <HotTickersStrip
-                tickers={report.hidden_hands.hot_tickers}
-                timestamp={report.timestamp}
-            />
+                    <div className="agentx-sidebar__metrics">
+                        <MetricBadge label="Bias" value={biasLabel} variant={biasVariant} />
+                        <MetricBadge label="Signals" value={`${clusterCount} ACTIVE`} variant="purple" />
+                        <MetricBadge label="Scan" value={`${report.scan_time_seconds || '—'}s`} variant="default" />
+                        <MetricBadge label="Tone" value={report.fed_overall_tone || '—'} variant="cyan" />
+                    </div>
+
+                    <div className="agentx-sidebar__refresh">
+                        <button onClick={refresh} disabled={loading} className="agentx-sidebar__refresh-btn">
+                            {loading ? '⏳ Scanning...' : '🔄 Refresh'}
+                        </button>
+                        {lastRefresh && (
+                            <span className="agentx-sidebar__timestamp">{lastRefresh.toLocaleTimeString()}</span>
+                        )}
+                    </div>
+
+                    {/* Conviction reasons */}
+                    <div className="agentx-sidebar__reasons">
+                        <span className="agentx-sidebar__reasons-label">Conviction Signals</span>
+                        {report.reasons.length > 0 ? (
+                            report.reasons.map((r, i) => (
+                                <div key={i} className="agentx-sidebar__reason">→ {r}</div>
+                            ))
+                        ) : (
+                            <div className="agentx-sidebar__empty">No conviction signals</div>
+                        )}
+                    </div>
+                </div>
+
+                <FocusListPanel tickers={report.hidden_hands.hot_tickers || []} />
+            </aside>
+
+            {/* Main signal feed */}
+            <main className="agentx-main">
+                <SignalFeedGrid report={report} onSignalClick={handleSignalClick} />
+            </main>
+
+            {/* Oracle overlay */}
+            {activeBrief && (
+                <div className="oracle-overlay">
+                    <div className="oracle-overlay__backdrop" onClick={() => setActiveBrief(null)} />
+                    <AiBriefingPanel item={activeBrief} onClose={() => setActiveBrief(null)} />
+                </div>
+            )}
         </div>
     );
 }
