@@ -98,6 +98,7 @@ export function KillChainDashboard() {
         type: 'CHECK' as const,
     };
     const isArmed = current_state.triple_active || false;
+    const confluence = (current_state as any).confluence || (isArmed ? 'DOUBLE' : 'WAITING');
     // Safe numeric accessors — API can return undefined fields
     const cotNet = current_state.cot_specs_net ?? 0;
     const gexRatio = current_state.gex_vix_ratio ?? 0;
@@ -105,6 +106,10 @@ export function KillChainDashboard() {
     const spyPrice = current_state.spy_price ?? 0;
     const pnl = current_state.pnl_percent ?? 0;
     const entryPrice = current_state.entry_price ?? 0;
+    // Per-layer triggered state
+    const l1 = (current_state as any).layer_1_triggered ?? (cotNet < 0);
+    const l2 = (current_state as any).layer_2_triggered ?? (gexRatio < 0);
+    const l3 = (current_state as any).layer_3_triggered ?? (dvrRatio > 0.55);
 
     return (
         <Card className={`border-2 transition-colors duration-500 ${isArmed ? 'border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-border-default'}`}>
@@ -113,7 +118,7 @@ export function KillChainDashboard() {
                 <div className="flex items-center gap-4">
                     <h2 className="text-xl font-bold tracking-tighter text-text-primary">🔱 KILL CHAIN ENGINE</h2>
                     <Badge variant={isArmed ? 'bullish' : 'neutral'} className="text-sm px-3 py-1">
-                        {isArmed ? '🔥 ARMED - TRIPLE CONFLUENCE' : '⚪ WAITING - SINGLE/DOUBLE'}
+                        {isArmed ? `🔥 ARMED - ${confluence} CONFLUENCE` : `⚪ ${confluence} - WATCHING`}
                     </Badge>
                 </div>
                 <div className="flex items-center gap-4 font-mono text-xs text-text-muted">
@@ -129,7 +134,7 @@ export function KillChainDashboard() {
                 <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 1: COT Divergence</span>
-                        <span className={cotNet < 0 ? 'text-green-400' : 'text-text-muted'}>{cotNet < 0 ? '✅' : '⚪'}</span>
+                        <span className={l1 ? 'text-green-400' : 'text-text-muted'}>{l1 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
                         {(cotNet / 1000).toFixed(0)}k <span className="text-xs text-text-secondary font-normal italic">Specs Net</span>
@@ -141,25 +146,24 @@ export function KillChainDashboard() {
                 <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 2: GEX Regime</span>
-                        <span className={gexRatio > 1 ? 'text-green-400' : 'text-text-muted'}>{gexRatio > 1 ? '✅' : '⚪'}</span>
+                        <span className={l2 ? 'text-green-400' : 'text-text-muted'}>{l2 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
-                        {gexRatio.toFixed(3)} <span className="text-xs text-text-secondary font-normal italic">VIX/VIX3M</span>
+                        {gexRatio.toFixed(3)} <span className="text-xs text-text-secondary font-normal italic">GEX $M</span>
                     </div>
-                    <div className="text-[10px] text-text-muted mt-1">Goal: Ratio {'<'} 1.0 (Positive GEX/Contango)</div>
-                    <div className="text-[8px] text-red-400 italic font-mono mt-0.5">*VIX/VIX3M reversed in code to match Zeta protocol</div>
+                    <div className="text-[10px] text-text-muted mt-1">Goal: Negative Gamma (Dealers Amplify Moves)</div>
                 </div>
 
                 {/* DVR LAYER */}
                 <div className="p-4 hover:bg-bg-tertiary transition cursor-help">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 3: Sell Volume (DVR)</span>
-                        <span className={dvrRatio > 0.55 ? 'text-green-400' : 'text-text-muted'}>{dvrRatio > 0.55 ? '✅' : '⚪'}</span>
+                        <span className={l3 ? 'text-green-400' : 'text-text-muted'}>{l3 ? '✅' : '⚪'}</span>
                     </div>
                     <div className="text-lg font-bold text-text-primary">
-                        {(dvrRatio * 100).toFixed(1)}% <span className="text-xs text-text-secondary font-normal italic">Down-Vol Ratio</span>
+                        {(dvrRatio * 100).toFixed(1)}% <span className="text-xs text-text-secondary font-normal italic">Short Vol %</span>
                     </div>
-                    <div className="text-[10px] text-text-muted mt-1">Goal: DVR {'>'} 55% (Panic Selling)</div>
+                    <div className="text-[10px] text-text-muted mt-1">Goal: Short Vol {'>'} 55% (Panic Threshold)</div>
                 </div>
             </div>
 
