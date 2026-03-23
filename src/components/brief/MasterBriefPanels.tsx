@@ -395,7 +395,7 @@ export function MasterBriefPanels() {
     <div className="mb-container">
       <div className="mb-header">
         <span className="mb-header__title">🎯 UNIFIED INTELLIGENCE</span>
-        <span className="mb-header__time">{new Date(data.as_of).toLocaleTimeString()}</span>
+        <span className="mb-header__time">{new Date(data.as_of + (data.as_of.endsWith('Z') ? '' : 'Z')).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true })} ET</span>
       </div>
 
       {/* Alert strip */}

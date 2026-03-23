@@ -322,7 +322,17 @@ export function TodaysBrief() {
 
       {/* Footer */}
       <div className="brief-footer">
-        {brief.date} · Generated {brief.generated_at}
+        {brief.date} · Generated {
+          brief.generated_at
+            ? new Date(brief.generated_at + (brief.generated_at.endsWith('Z') ? '' : 'Z'))
+                .toLocaleTimeString('en-US', {
+                  timeZone: 'America/New_York',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                }) + ' ET'
+            : 'Unknown'
+        }
       </div>
     </div>
   );

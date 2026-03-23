@@ -34,7 +34,7 @@ export function InstitutionalSignals({ data }: { data: any }) {
         })}
       </div>
       <div className="text-xs text-text-muted mt-3 text-right">
-        {signals.length} active signals • {data?.as_of ? new Date(data.as_of).toLocaleTimeString() : ''}
+        {signals.length} active signals • {data?.as_of ? new Date(data.as_of + (data.as_of.endsWith('Z') ? '' : 'Z')).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true }) + ' ET' : ''}
       </div>
     </AXLFICard>
   );
