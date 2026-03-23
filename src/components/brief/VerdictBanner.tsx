@@ -35,7 +35,15 @@ export function VerdictBanner({ verdict, summary, wallBreached, wallBreachDetail
         <div className="wall-breach-alert">
           <div className="wall-breach-alert__title">⚠️ SPY WALL BREACH</div>
           <div className="wall-breach-alert__details">
-            SPY at ${wallBreachDetails.spy_price} — ${Math.abs(wallBreachDetails.delta).toFixed(2)} below call wall ${wallBreachDetails.call_wall} — detected {wallBreachDetails.breach_time}
+            SPY at ${wallBreachDetails.spy_price} — ${Math.abs(wallBreachDetails.delta).toFixed(2)} below call wall ${wallBreachDetails.call_wall} — detected {
+              new Date(wallBreachDetails.breach_time + (wallBreachDetails.breach_time.endsWith('Z') ? '' : 'Z'))
+                .toLocaleTimeString('en-US', {
+                  timeZone: 'America/New_York',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                })
+            } ET
           </div>
         </div>
       )}
