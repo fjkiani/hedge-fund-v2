@@ -541,3 +541,111 @@
   color: #fca5a5;
   font-size: 0.8rem;
 }
+
+/* ── Pre-Signal Intelligence Panel ───────────────────────── */
+
+.mb-panel--presignal {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(15, 23, 42, 0.85));
+  border-color: rgba(239, 68, 68, 0.25);
+  margin-bottom: 0.75rem;
+}
+
+.mb-panel--presignal .mb-panel__title {
+  color: #fcd34d;
+  border-bottom-color: rgba(239, 68, 68, 0.2);
+}
+
+.mb-presignal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .mb-presignal-grid { grid-template-columns: 1fr; }
+}
+
+.mb-presignal-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+}
+
+.mb-presignal-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.mb-presignal-card__icon { font-size: 0.9rem; flex-shrink: 0; }
+
+.mb-presignal-card__name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.mb-presignal-card__signal {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.mb-presignal-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.mb-psm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.mb-psm__label {
+  font-size: 0.6rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mb-psm__value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.mb-psm__value--small { font-size: 0.68rem; }
+
+.mb-presignal-reasons {
+  border-top: 1px solid rgba(51, 65, 85, 0.3);
+  padding-top: 0.4rem;
+}
+
+.mb-presignal-reason {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  padding: 0.1rem 0;
+}
+
+.mb-presignal-footer {
+  margin-top: 0.5rem;
+  font-size: 0.65rem;
+  color: #475569;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+

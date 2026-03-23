@@ -22,6 +22,10 @@ export interface MasterBriefAlert {
   growth_score?: number;
   penalty?: number;
   total_gex?: number;
+  // ADP / GDP alert fields
+  delta?: number;
+  prediction?: number;
+  estimate?: number;
 }
 
 export interface MasterBrief {
@@ -123,6 +127,28 @@ export interface MasterBrief {
     regime_modifier: number;
     confidence_cap: number;
     cap_reason: string;
+    error?: string;
+  };
+  adp_prediction?: {
+    signal: string;
+    prediction: number;
+    consensus: number;
+    delta: number;
+    confidence: number;
+    reasons: string[];
+    inputs: Record<string, number>;
+    edge: string;
+    as_of: string;
+    error?: string;
+  };
+  gdp_nowcast?: {
+    gdp_estimate: number;
+    as_of: string;
+    consensus: number;
+    vs_consensus: number;
+    signal: string;
+    edge: string;
+    source: string;
     error?: string;
   };
   alerts: MasterBriefAlert[];

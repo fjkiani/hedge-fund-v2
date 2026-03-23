@@ -215,6 +215,114 @@ function EconomicEdgePanel({ data }: { data: MasterBrief }) {
   );
 }
 
+function PreSignalPanel({ data }: { data: MasterBrief }) {
+  const adp = data.adp_prediction;
+  const gdp = data.gdp_nowcast;
+
+  // Hide panel if both are missing or errored or in-line with tiny delta
+  const adpVisible = adp && !adp.error && adp.signal !== 'IN_LINE';
+  const gdpVisible = gdp && !gdp.error && gdp.signal !== 'IN_LINE';
+  if (!adpVisible && !gdpVisible) return null;
+
+  const signalColor = (sig: string) =>
+    sig === 'MISS_LIKELY' || sig === 'MISS' ? '#ef4444'
+    : sig === 'BEAT_LIKELY' || sig === 'BEAT' ? '#22c55e'
+    : '#64748b';
+
+  const signalIcon = (sig: string) =>
+    sig === 'MISS_LIKELY' || sig === 'MISS' ? '🔴'
+    : sig === 'BEAT_LIKELY' || sig === 'BEAT' ? '🟢'
+    : '🟡';
+
+  const fmt = (n: number) => n >= 0 ? `+${n.toLocaleString()}` : n.toLocaleString();
+
+  return (
+    <div className="mb-panel mb-panel--presignal mb-panel--full">
+      <div className="mb-panel__title">⚡ PRE-SIGNAL INTELLIGENCE</div>
+      <div className="mb-presignal-grid">
+
+        {adpVisible && (
+          <div className="mb-presignal-card">
+            <div className="mb-presignal-card__header">
+              <span className="mb-presignal-card__icon">{signalIcon(adp!.signal)}</span>
+              <span className="mb-presignal-card__name">ADP EMPLOYMENT</span>
+              <span className="mb-presignal-card__signal" style={{ color: signalColor(adp!.signal) }}>
+                {adp!.signal.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <div className="mb-presignal-metrics">
+              <div className="mb-psm">
+                <span className="mb-psm__label">Model</span>
+                <span className="mb-psm__value">{adp!.prediction?.toLocaleString()}</span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Consensus</span>
+                <span className="mb-psm__value">{adp!.consensus?.toLocaleString()}</span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Delta</span>
+                <span className="mb-psm__value" style={{ color: signalColor(adp!.signal) }}>
+                  {adp!.delta != null ? fmt(adp!.delta) : '—'}
+                </span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Confidence</span>
+                <span className="mb-psm__value">{adp!.confidence != null ? `${Math.round(adp!.confidence * 100)}%` : '—'}</span>
+              </div>
+            </div>
+            {adp!.reasons && adp!.reasons.length > 0 && (
+              <div className="mb-presignal-reasons">
+                {adp!.reasons.map((r, i) => (
+                  <div key={i} className="mb-presignal-reason">· {r}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {gdpVisible && (
+          <div className="mb-presignal-card">
+            <div className="mb-presignal-card__header">
+              <span className="mb-presignal-card__icon">{signalIcon(gdp!.signal)}</span>
+              <span className="mb-presignal-card__name">GDP NOWCAST Q1</span>
+              <span className="mb-presignal-card__signal" style={{ color: signalColor(gdp!.signal) }}>
+                {gdp!.signal}
+              </span>
+            </div>
+            <div className="mb-presignal-metrics">
+              <div className="mb-psm">
+                <span className="mb-psm__label">GDPNow</span>
+                <span className="mb-psm__value">{gdp!.gdp_estimate}%</span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Consensus</span>
+                <span className="mb-psm__value">{gdp!.consensus}%</span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Delta</span>
+                <span className="mb-psm__value" style={{ color: signalColor(gdp!.signal) }}>
+                  {gdp!.vs_consensus != null ? `${gdp!.vs_consensus > 0 ? '+' : ''}${gdp!.vs_consensus?.toFixed(2)}pp` : '—'}
+                </span>
+              </div>
+              <div className="mb-psm">
+                <span className="mb-psm__label">Source</span>
+                <span className="mb-psm__value mb-psm__value--small">Atlanta Fed</span>
+              </div>
+            </div>
+            <div className="mb-presignal-reasons">
+              <div className="mb-presignal-reason">· {gdp!.edge}</div>
+            </div>
+          </div>
+        )}
+
+      </div>
+      {adp?.as_of && (
+        <div className="mb-presignal-footer">Updated: {new Date(adp.as_of + 'Z').toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true })} ET</div>
+      )}
+    </div>
+  );
+}
+
 function HiddenHandsPanel({ data }: { data: MasterBrief }) {
   const hh = data.hidden_hands;
   if (!hh || hh.error) return <div className="mb-panel mb-panel--hh mb-panel--full"><div className="mb-panel__error">Hidden Hands unavailable</div></div>;
@@ -410,6 +518,9 @@ export function MasterBriefPanels() {
         <FedPathPanel data={data} />
         <EconomicEdgePanel data={data} />
       </div>
+
+      {/* Row 1.5: Pre-Signal Intelligence (ADP + GDPNow) */}
+      <PreSignalPanel data={data} />
 
       {/* Row 2: Hidden Hands (full width) */}
       <HiddenHandsPanel data={data} />
