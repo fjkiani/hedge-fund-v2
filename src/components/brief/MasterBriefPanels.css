@@ -649,3 +649,84 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
+/* ═══════════════════════════════════════════════════════
+   🔮 Oracle Brief Strip — ambient verdict bar
+   ═══════════════════════════════════════════════════════ */
+
+.oracle-brief-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  animation: oracle-fade-in 0.4s ease;
+}
+
+@keyframes oracle-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.oracle-strip-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.oracle-strip-label {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0.85;
+}
+
+.oracle-strip-risk {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.oracle-strip-verdict {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+  line-height: 1.4;
+}
+
+.oracle-strip-divider {
+  width: 1px;
+  height: 1.1rem;
+  background: rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.oracle-strip-implication {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 0;
+  flex: 1;
+  min-width: 160px;
+  opacity: 0.85;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.oracle-strip-ts {
+  font-size: 0.6rem;
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0.5;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}

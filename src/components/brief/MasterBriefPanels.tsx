@@ -10,6 +10,9 @@
  */
 
 import { useMasterBrief, type MasterBrief, type MasterBriefAlert } from '../../hooks/useMasterBrief';
+import { useOracleBrief } from '../../hooks/useOracleBrief';
+import { OracleContext } from './OracleContext';
+import { OracleBriefStrip } from './panels/OracleBriefStrip';
 import './MasterBriefPanels.css';
 
 function AlertBanner({ alerts }: { alerts: MasterBriefAlert[] }) {
@@ -484,6 +487,7 @@ function KillChainPanel({ data }: { data: MasterBrief }) {
 
 export function MasterBriefPanels() {
   const { data, loading, error } = useMasterBrief(120000);
+  const { oracle } = useOracleBrief(data);
 
   if (loading) return (
     <div className="mb-loading">
@@ -500,36 +504,41 @@ export function MasterBriefPanels() {
   );
 
   return (
-    <div className="mb-container">
-      <div className="mb-header">
-        <span className="mb-header__title">🎯 UNIFIED INTELLIGENCE</span>
-        <span className="mb-header__time">{new Date(data.as_of + (data.as_of.endsWith('Z') ? '' : 'Z')).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true })} ET</span>
+    <OracleContext.Provider value={oracle}>
+      <div className="mb-container">
+        <div className="mb-header">
+          <span className="mb-header__title">🎯 UNIFIED INTELLIGENCE</span>
+          <span className="mb-header__time">{new Date(data.as_of + (data.as_of.endsWith('Z') ? '' : 'Z')).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true })} ET</span>
+        </div>
+
+        {/* Oracle verdict bar — ambient, always visible, no click required */}
+        <OracleBriefStrip />
+
+        {/* Alert strip */}
+        <AlertBanner alerts={data.alerts} />
+
+        {/* Status bar */}
+        <StatusBar data={data} />
+
+        {/* Row 1: Regime + Fed Path + Economic Edge */}
+        <div className="mb-row mb-row--3col">
+          <RegimePanel data={data} />
+          <FedPathPanel data={data} />
+          <EconomicEdgePanel data={data} />
+        </div>
+
+        {/* Row 1.5: Pre-Signal Intelligence (ADP + GDPNow) */}
+        <PreSignalPanel data={data} />
+
+        {/* Row 2: Hidden Hands (full width) */}
+        <HiddenHandsPanel data={data} />
+
+        {/* Row 3: Derivatives + Kill Chain */}
+        <div className="mb-row mb-row--2col">
+          <DerivativesPanel data={data} />
+          <KillChainPanel data={data} />
+        </div>
       </div>
-
-      {/* Alert strip */}
-      <AlertBanner alerts={data.alerts} />
-
-      {/* Status bar */}
-      <StatusBar data={data} />
-
-      {/* Row 1: Regime + Fed Path + Economic Edge */}
-      <div className="mb-row mb-row--3col">
-        <RegimePanel data={data} />
-        <FedPathPanel data={data} />
-        <EconomicEdgePanel data={data} />
-      </div>
-
-      {/* Row 1.5: Pre-Signal Intelligence (ADP + GDPNow) */}
-      <PreSignalPanel data={data} />
-
-      {/* Row 2: Hidden Hands (full width) */}
-      <HiddenHandsPanel data={data} />
-
-      {/* Row 3: Derivatives + Kill Chain */}
-      <div className="mb-row mb-row--2col">
-        <DerivativesPanel data={data} />
-        <KillChainPanel data={data} />
-      </div>
-    </div>
+    </OracleContext.Provider>
   );
 }
