@@ -1,238 +1,150 @@
 /**
- * 🐺 Kill Chain Dashboard — Mars Rules MVP
- * 
- * Minimal Viable Proof:
- * - Triple Confluence Status (COT + GEX + DVR)
- * - Real-time Signal Log (Activations / Deactivations)
- * - P&L Tracking for active weapon
+ * KillChainDashboard — Orchestrator (slim)
+ *
+ * Data:  killchainApi.monitor() → /kill-chain  (60s polling)
+ * UI:    Composed entirely from /src/components/killchain/
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle } from 'lucide-react';
 import { killchainApi } from '../../lib/api';
+import {
+  KillChainHeader,
+  ConfluenceCard,
+  PnlWidget,
+  SignalLog,
+  CpiBanner,
+  AiBriefingPanel,
+} from '../killchain';
+import type { MonitorResponse, KillChainData, AiBriefingItem } from '../killchain';
 
-interface KillChainSignal {
-    timestamp: string;
-    type: 'CHECK' | 'ACTIVATION' | 'DEACTIVATION';
-    spy_price: number;
-    cot_specs_net: number;
-    gex_vix_ratio: number;
-    dvr_ratio: number;
-    triple_active: boolean;
-    layers_active: number;
-    layers_total: number;
-    pnl_percent?: number;
-    entry_price?: number;
-    exit_price?: number;
-}
+// Fallback kill chain shape when the API hasn't responded yet
+const EMPTY_KC: KillChainData = {
+  score: 0,
+  verdict: 'WAITING',
+  direction: 'MIXED',
+  confluence: 'WAITING',
+  triggered_count: 0,
+  armed: false,
+  bullish_points: 0,
+  bearish_points: 0,
+  layer_1: { name: 'COT Divergence', triggered: false, value: 0, unit: 'Specs Net', signal: 'NEUTRAL' },
+  layer_2: { name: 'GEX Regime', triggered: false, value: 0, unit: 'GEX $M', signal: 'NEUTRAL' },
+  layer_3: { name: 'DVR', triggered: false, value: 0, unit: 'Short Vol %', signal: 'WATCHING' },
+  position: { entry_price: 0, current_pnl: 0, activated_at: null },
+};
 
-interface KillChainMonitorResponse {
-    total_checks: number;
-    activations: number;
-    current_state: KillChainSignal;
-    history: KillChainSignal[];
-}
+const LAYERS = [
+  { title: 'Layer 1: COT Divergence', key: 'layer_1' as const },
+  { title: 'Layer 2: GEX Regime',     key: 'layer_2' as const },
+  { title: 'Layer 3: Sell Volume (DVR)', key: 'layer_3' as const },
+];
 
 export function KillChainDashboard() {
-    const [data, setData] = useState<KillChainMonitorResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [data, setData]               = useState<MonitorResponse | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [brief, setBrief]             = useState<AiBriefingItem | null>(null);
 
-    const fetchData = useCallback(async () => {
-        try {
-            setLoading(true);
-            const res = await killchainApi.monitor() as KillChainMonitorResponse;
-            setData(res);
-            setError(null);
-            setLastRefresh(new Date());
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch kill chain monitor');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 60000); // 1 min refresh
-        return () => clearInterval(interval);
-    }, [fetchData]);
-
-    if (loading && !data) {
-        return (
-            <Card className="border-border-default bg-bg-secondary">
-                <div className="p-8 text-center animate-pulse text-text-muted font-mono">
-                    🛰️ SCANNING ZETA CHANNELS...
-                </div>
-            </Card>
-        );
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await (killchainApi.monitor() as Promise<MonitorResponse>);
+      setData(res);
+      setError(null);
+      setLastRefresh(new Date());
+    } catch (err: any) {
+      setError(err.message ?? 'Kill chain fetch failed');
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    if (error && !data) {
-        return (
-            <Card className="border-red-500/50 bg-red-500/5">
-                <div className="p-4 flex justify-between items-center text-red-400 font-mono text-sm">
-                    <span>❌ SIGNAL LOST: {error}</span>
-                    <button onClick={fetchData} className="px-2 py-1 bg-red-500/20 rounded hover:bg-red-500/30">RETRY</button>
-                </div>
-            </Card>
-        );
-    }
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, 60_000);
+    return () => clearInterval(id);
+  }, [fetchData]);
 
-    if (!data) return null;
+  // ── States ──────────────────────────────────────────────────────────
+  if (loading && !data) return <LoadingScreen />;
+  if (error && !data)   return <ErrorScreen message={error} onRetry={fetchData} />;
+  if (!data)            return null;
 
-    const { history } = data;
-    const current_state = data.current_state || {
-        cot_specs_net: 0,
-        gex_vix_ratio: 0,
-        dvr_ratio: 0,
-        triple_active: false,
-        layers_active: 0,
-        layers_total: 3,
-        spy_price: 0,
-        pnl_percent: 0,
-        entry_price: 0,
-        timestamp: new Date().toISOString(),
-        type: 'CHECK' as const,
-    };
-    const isArmed = current_state.triple_active || false;
-    const confluence = (current_state as any).confluence || (isArmed ? 'DOUBLE' : 'WAITING');
-    // Safe numeric accessors — API can return undefined fields
-    const cotNet = current_state.cot_specs_net ?? 0;
-    const gexRatio = current_state.gex_vix_ratio ?? 0;
-    const dvrRatio = current_state.dvr_ratio ?? 0;
-    const spyPrice = current_state.spy_price ?? 0;
-    const pnl = current_state.pnl_percent ?? 0;
-    const entryPrice = current_state.entry_price ?? 0;
-    // Per-layer triggered state
-    const l1 = (current_state as any).layer_1_triggered ?? (cotNet < 0);
-    const l2 = (current_state as any).layer_2_triggered ?? (gexRatio < 0);
-    const l3 = (current_state as any).layer_3_triggered ?? (dvrRatio > 0.55);
+  const kc = data.kill_chain ?? EMPTY_KC;
+  const spotPrice = data.current_state?.spy_price ?? 0;
 
-    return (
-        <Card className={`border-2 transition-colors duration-500 ${isArmed ? 'border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-border-default'}`}>
-            {/* 🔱 Header: Weapon Status */}
-            <div className={`p-4 flex justify-between items-center ${isArmed ? 'bg-green-500/10' : 'bg-bg-tertiary shadow-sm'}`}>
-                <div className="flex items-center gap-4">
-                    <h2 className="text-xl font-bold tracking-tighter text-text-primary">🔱 KILL CHAIN ENGINE</h2>
-                    <Badge variant={isArmed ? 'bullish' : 'neutral'} className="text-sm px-3 py-1">
-                        {isArmed ? `🔥 ARMED - ${confluence} CONFLUENCE` : `⚪ ${confluence} - WATCHING`}
-                    </Badge>
-                </div>
-                <div className="flex items-center gap-4 font-mono text-xs text-text-muted">
-                    <span>CHECKS: {data.total_checks}</span>
-                    <span>STRIKES: {data.activations}</span>
-                    <span>{lastRefresh?.toLocaleTimeString()}</span>
-                </div>
-            </div>
+  return (
+    <div className="space-y-8">
+      <KillChainHeader
+        kc={kc}
+        totalChecks={data.total_checks}
+        activations={data.activations}
+        lastRefresh={lastRefresh}
+      />
 
-            {/* 🛡️ Layer Breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-1 border-y border-border-subtle bg-bg-primary">
-                {/* COT LAYER */}
-                <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 1: COT Divergence</span>
-                        <span className={l1 ? 'text-green-400' : 'text-text-muted'}>{l1 ? '✅' : '⚪'}</span>
-                    </div>
-                    <div className="text-lg font-bold text-text-primary">
-                        {(cotNet / 1000).toFixed(0)}k <span className="text-xs text-text-secondary font-normal italic">Specs Net</span>
-                    </div>
-                    <div className="text-[10px] text-text-muted mt-1">Goal: Specs Net {'<'} 0 (Crowded Short)</div>
-                </div>
+      {/* Confluence layer cards */}
+      <div className="flex gap-8">
+        {LAYERS.map(({ title, key }) => (
+          <ConfluenceCard key={key} title={title} layer={kc[key]} onClick={setBrief} />
+        ))}
+      </div>
 
-                {/* GEX LAYER */}
-                <div className="p-4 border-r border-border-subtle hover:bg-bg-tertiary transition cursor-help">
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 2: GEX Regime</span>
-                        <span className={l2 ? 'text-green-400' : 'text-text-muted'}>{l2 ? '✅' : '⚪'}</span>
-                    </div>
-                    <div className="text-lg font-bold text-text-primary">
-                        {gexRatio.toFixed(3)} <span className="text-xs text-text-secondary font-normal italic">GEX $M</span>
-                    </div>
-                    <div className="text-[10px] text-text-muted mt-1">Goal: Negative Gamma (Dealers Amplify Moves)</div>
-                </div>
+      <PnlWidget position={kc.position} spotPrice={spotPrice} onDrillDown={setBrief} />
 
-                {/* DVR LAYER */}
-                <div className="p-4 hover:bg-bg-tertiary transition cursor-help">
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Layer 3: Sell Volume (DVR)</span>
-                        <span className={l3 ? 'text-green-400' : 'text-text-muted'}>{l3 ? '✅' : '⚪'}</span>
-                    </div>
-                    <div className="text-lg font-bold text-text-primary">
-                        {(dvrRatio * 100).toFixed(1)}% <span className="text-xs text-text-secondary font-normal italic">Short Vol %</span>
-                    </div>
-                    <div className="text-[10px] text-text-muted mt-1">Goal: Short Vol {'>'} 55% (Panic Threshold)</div>
-                </div>
-            </div>
+      <SignalLog history={data.history ?? []} totalChecks={data.total_checks} onRowClick={setBrief} />
 
-            {/* 📈 Active Signal P&L (if armed) */}
-            {isArmed && (
-                <div className="p-6 bg-green-500/5 flex flex-col items-center justify-center border-b border-green-500/20">
-                    <div className="text-sm font-bold text-green-400 tracking-widest uppercase mb-1">ACTIVE WEAPON P&L</div>
-                    <div className={`text-5xl font-black tracking-tighter ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
-                    </div>
-                    <div className="flex gap-4 mt-2 text-xs font-mono text-text-muted">
-                        <span>ENTRY: ${entryPrice.toFixed(2)}</span>
-                        <span>SPOT: ${spyPrice.toFixed(2)}</span>
-                    </div>
-                </div>
-            )}
+      <CpiBanner onDrillDown={setBrief} />
 
-            {/* 📜 Kill Log (Log of strikes and checks) */}
-            <div className="p-0 overflow-hidden">
-                <div className="px-4 py-2 bg-bg-tertiary border-b border-border-subtle flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-text-muted uppercase">ZETA SIGNAL LOG (LATEST 20)</span>
-                    <span className="text-[10px] text-text-muted italic">Polling every 30min on Render hub</span>
-                </div>
-                <div className="max-h-[300px] overflow-y-auto font-mono text-[11px]">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 bg-bg-secondary text-text-muted border-b border-border-subtle">
-                            <tr>
-                                <th className="p-2 font-normal">TIME</th>
-                                <th className="p-2 font-normal">ACTION</th>
-                                <th className="p-2 font-normal">PRICE</th>
-                                <th className="p-2 font-normal">LAYERS</th>
-                                <th className="p-2 font-normal">RESULT</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border-subtle">
-                            {[...history].reverse().map((sig, idx) => {
-                                const isAct = sig.type === 'ACTIVATION';
-                                const isDeact = sig.type === 'DEACTIVATION';
-                                return (
-                                    <tr key={idx} className={`${isAct ? 'bg-green-500/10 text-green-300' : isDeact ? 'bg-red-500/10 text-red-300' : 'text-text-muted hover:bg-bg-tertiary'}`}>
-                                        <td className="p-2 whitespace-nowrap">{new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                                        <td className="p-2 font-bold">{sig.type}</td>
-                                        <td className="p-2">${(sig.spy_price ?? 0).toFixed(2)}</td>
-                                        <td className="p-2">{sig.layers_active}/{sig.layers_total}</td>
-                                        <td className="p-2">
-                                            {isDeact ? (
-                                                <span className={`font-bold ${(sig.pnl_percent ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {(sig.pnl_percent ?? 0) >= 0 ? '+' : ''}{(sig.pnl_percent ?? 0).toFixed(2)}%
-                                                </span>
-                                            ) : sig.triple_active ? '🔥 ARMED' : 'WAITING'}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+      {/* AI Oracle slide-out */}
+      <AnimatePresence>
+        {brief && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setBrief(null)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250]"
+            />
+            <AiBriefingPanel item={brief} onClose={() => setBrief(null)} />
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
-            {/* 💣 CPI STRIKE ALERT */}
-            <div className="p-3 bg-red-500/10 border-t border-red-500/20 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="animate-ping w-2 h-2 rounded-full bg-red-500" />
-                    <span className="text-xs font-bold text-red-400 uppercase tracking-widest">NEXT PRIMARY TARGET: US CONSUMER PRICE INDEX (CPI)</span>
-                </div>
-                <div className="text-xs font-mono text-red-300">
-                    TOMORROW 08:30:00 ET
-                </div>
-            </div>
-        </Card>
-    );
+// ── Local micro-components (loading/error only) ──────────────────────────────
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-[300px] bg-[#050506] flex items-center justify-center rounded-2xl border border-white/5">
+      <div className="flex flex-col items-center gap-6">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 border-2 border-emerald-500/10 rounded-full" />
+          <div className="absolute inset-0 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <span className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.5em]">
+          Synchronizing Confluence Grid
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({ message, onRetry }: { message: string | null; onRetry: () => void }) {
+  return (
+    <div className="bg-rose-950/20 border border-rose-500/30 rounded-2xl p-6 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="w-5 h-5 text-rose-500" />
+        <span className="text-xs font-bold text-rose-400 font-mono uppercase">Signal Lost: {message}</span>
+      </div>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 bg-rose-500/10 border border-rose-500/30 rounded-lg text-[10px] font-black text-rose-400 uppercase tracking-widest hover:bg-rose-500/20 transition-all"
+      >
+        Retry
+      </button>
+    </div>
+  );
 }
