@@ -1,12 +1,15 @@
 import { createContext, useContext } from 'react';
-import type { OracleState } from '../../hooks/useOracle';
+import type { OracleState } from '../../hooks/useOracleBrief';
 
 /**
  * OracleContext — distributes the unified oracle result to all panels.
  *
  * Provider lives in MasterBriefPanels (the orchestrator).
- * All panels (KillChainPanel, DerivativesPanel, PreSignalPanel, HiddenHandsPanel) read
- * their oracle slice via useOracle() — no direct Groq calls in production.
+ * Population: MasterBriefPanels calls useOracleBrief(masterData)
+ *   and wraps children in <OracleContext.Provider value={oracle.oracle}>.
+ *
+ * Consumption: panels call useOracle() to get their oracle slice.
+ * No panel calls Groq directly — production rule.
  */
 export const OracleContext = createContext<OracleState | null>(null);
 
