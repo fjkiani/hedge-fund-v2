@@ -16,6 +16,7 @@ import { MacroCommandBar }  from './panels/MacroCommandBar';
 import { StrategyCardRow }  from './panels/StrategyCardRow';
 import { TacticalSection }  from './panels/TacticalSection';
 import { PreSignalSection } from './panels/PreSignalSection';
+import { EcoSignalsPanel }  from './panels/EcoSignalsPanel';
 import { ForecastGrid }     from './panels/ForecastGrid';
 import './MasterBriefPanels.css';
 
@@ -66,7 +67,10 @@ export function MasterBriefPanels() {
         {/* Row 3: Hidden Hands + [Derivatives + Kill Chain] */}
         <TacticalSection data={data} />
 
-        {/* Row 4: Forecast snapshot grid */}
+        {/* Row 4: PMI + UMich + Current Account eco signals */}
+        <EcoSignalsPanel data={data} />
+
+        {/* Row 5: Forecast snapshot grid */}
         <ForecastGrid data={data} />
       </div>
     </OracleContext.Provider>

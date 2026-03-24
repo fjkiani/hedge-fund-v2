@@ -151,6 +151,53 @@ export interface MasterBrief {
     source: string;
     error?: string;
   };
+  jobless_claims?: {
+    icsa_latest: number | null;
+    icsa_4wk_avg: number | null;
+    consensus: number | null;
+    delta: number | null;
+    signal: string;
+    confidence: number | null;
+    reasons: string[];
+    edge: string | null;
+    as_of?: string;
+    error?: string;
+  };
+  pmi?: {
+    signal: string;
+    confidence: number | null;
+    edge: string | null;
+    series?: {
+      pmi_mfg?: { signal: string };
+      pmi_svcs?: { signal: string };
+      pmi_comp?: { signal: string };
+    };
+    error?: string;
+  };
+  current_account?: {
+    consensus: number | null;
+    delta: number | null;
+    sigma: number | null;
+    signal: string;
+    edge: string | null;
+    error?: string;
+  };
+  umich_sentiment?: {
+    consensus: number | null;
+    delta: number | null;
+    signal: string;
+    confidence: number | null;
+    edge: string | null;
+    error?: string;
+  };
+  umich_expectations?: {
+    consensus: number | null;
+    delta: number | null;
+    signal: string;
+    confidence: number | null;
+    edge: string | null;
+    error?: string;
+  };
   alerts: MasterBriefAlert[];
 }
 
