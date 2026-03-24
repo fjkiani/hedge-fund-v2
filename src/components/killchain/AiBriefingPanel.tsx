@@ -1,74 +1,165 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Crosshair, ShieldAlert, MessageSquareCode, FileSearch, ExternalLink } from 'lucide-react';
-import { AiBriefingItem } from './types';
+import { X, Crosshair, ShieldAlert, MessageSquareCode, Zap } from 'lucide-react';
+import type { AiBriefingItem } from './types';
+import { useOracle } from '../../hooks/useOracle';
 
 interface Props {
   item: AiBriefingItem;
   onClose: () => void;
 }
 
+// ── Route constants — production: backend only, dev: Groq fallback allowed ─────
+const KC_ANALYZE_URL = `${(import.meta as any).env?.VITE_API_URL ?? '/api/v1'}/oracle/analyze`;
+const GROQ_API_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL     = 'llama-3.3-70b-versatile';
+
+const DEV_SYSTEM_PROMPT =
+  'You are the Zeta Kill Chain Oracle — a lead quant analyst for a high-frequency institutional trading desk. ' +
+  'You receive LIVE Kill Chain confluence data in structured format. ' +
+  'Cross-reference all layers and explain WHY the current state creates or denies a high-conviction trade setup. ' +
+  'GUARDRAIL: Do NOT override discrete signals — if a layer shows triggered=false, do not say it is firing. ' +
+  'Only summarize confluence, highlight contradictions, and map to trade implications. ' +
+  'Reference actual numbers. Use ≤5 sharp bullet points.';
+
+function buildDevQuery(item: AiBriefingItem): string {
+  const ctx = item.killChainContext;
+  if (!ctx) {
+    return [
+      'Analyze Execution Signal:',
+      `Title: ${item.title ?? item.action ?? 'N/A'}`,
+      `Value: ${item.value ?? item.price ?? 'N/A'}`,
+      `Meaning: ${item.meaning ?? 'N/A'}`,
+      'Explain significance, logic state, and tactical directives.',
+    ].join('\n');
+  }
+  const layerCount = ctx.layers.length;
+  const layerLines = ctx.layers.map((l, i) => {
+    const status = l.triggered ? '✅ PASS' : '❌ FAIL';
+    const val = typeof l.value === 'number' ? l.value.toFixed(3) : l.value;
+    return `  Layer ${i + 1} — ${l.name}: ${status}  |  ${val} ${l.unit}  |  Signal: ${l.signal}`;
+  });
+  return [
+    '══ KILL CHAIN STATE SNAPSHOT ══',
+    `Score: ${ctx.score}  |  Verdict: ${ctx.verdict}  |  Direction: ${ctx.direction}`,
+    `Confluence: ${ctx.confluence}  |  Armed: ${ctx.armed ? 'YES 🔴' : 'NO ⚫'}`,
+    `Triggered: ${ctx.triggered_count}/${layerCount} layers`,
+    ctx.spy_spot ? `SPY Spot: $${ctx.spy_spot.toFixed(2)}` : '',
+    '',
+    '══ CONFLUENCE LAYERS ══',
+    ...layerLines,
+    '',
+    '══ CLICKED SIGNAL ══',
+    `Title: ${item.title ?? item.action ?? 'N/A'}`,
+    `Value: ${item.value ?? item.price ?? 'N/A'}`,
+    `Status: ${item.status ?? 'N/A'}`,
+    '',
+    `Analyze in context of ${layerCount} layers. Summarize confluence. Highlight contradictions. Map to trade action.`,
+  ].join('\n');
+}
+
+type OracleMode = 'unified' | 'kc-snapshot' | 'dev-fallback' | 'error';
+
 export const AiBriefingPanel: React.FC<Props> = ({ item, onClose }) => {
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [sources, setSources] = useState<{ uri: string; title: string }[]>([]);
+  const [analysis, setAnalysis]     = useState<string | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [oracleMode, setOracleMode] = useState<OracleMode>('unified');
+
+  // v3 spec: unified oracle is the primary read source
+  const oracle = useOracle();
 
   useEffect(() => {
+    if (oracle.loading) return; // wait for unified oracle probe to settle
+
     setLoading(true);
     setAnalysis(null);
-    setSources([]);
 
     const run = async () => {
+      // ── PATH 1: Unified oracle sections (v3 primary) ───────────────────────
+      // When /api/v1/oracle/brief is live and healthy, use KC slice directly.
+      if (oracle.risk_level !== 'UNKNOWN' && oracle.sections.kill_chain?.summary) {
+        setAnalysis(oracle.sections.kill_chain.summary);
+        setOracleMode('unified');
+        setLoading(false);
+        return;
+      }
+
+      // ── PATH 2: KC snapshot → backend oracle/analyze ───────────────────────
       try {
-        const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY ?? '';
-        if (!apiKey) {
-          setAnalysis('ORACLE_UPLINK_FAILURE: VITE_GEMINI_API_KEY not configured.');
-          return;
-        }
+        const body: Record<string, any> = {
+          title:   item.title,
+          action:  item.action,
+          value:   String(item.value ?? item.price ?? ''),
+          unit:    item.unit,
+          result:  item.result,
+          goal:    item.goal,
+          meaning: item.meaning,
+          status:  item.status,
+          slug:    item.slug,
+        };
+        if (item.killChainContext) body.kill_chain_snapshot = item.killChainContext;
 
-        const systemPrompt =
-          'Act as a lead quant analyst for a high-frequency trading desk. Analyze the specific Kill Chain confluence layer or execution signal provided. Explain the mathematical significance (GEX, VIX Term Structure, Net Delta), the current logic state (Pass/Fail), and potential catalysts using Google Search grounding. Use bullet points for tactical directives.';
-
-        const userQuery = `Analyze Execution Signal:
-Title: ${item.title ?? item.action}
-Value: ${item.value ?? item.price}
-Metric: ${item.unit ?? item.result}
-Logic: ${item.goal ?? item.layers}
-Meaning: ${item.meaning ?? 'N/A'}
-Slug: ${item.slug ?? 'n/a'}`;
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
+        const res = await fetch(KC_ANALYZE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: userQuery }] }],
-            tools: [{ google_search: {} }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-          }),
+          body: JSON.stringify(body),
         });
-        const json = await res.json();
-        const candidate = json.candidates?.[0];
-        if (candidate?.content?.parts?.[0]?.text) {
-          setAnalysis(candidate.content.parts[0].text);
-          const attrs = candidate.groundingMetadata?.groundingAttributions ?? [];
-          setSources(
-            attrs
-              .map((a: any) => ({ uri: a.web?.uri, title: a.web?.title }))
-              .filter((s: any) => s.uri && s.title)
-          );
-        } else {
-          setAnalysis('ORACLE_UPLINK_FAILURE: No analysis returned.');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.analysis && !json.error) {
+            setAnalysis(json.analysis);
+            setOracleMode('kc-snapshot');
+            setLoading(false);
+            return;
+          }
         }
+        throw new Error(`oracle/analyze returned ${res.status}`);
+
       } catch {
-        setAnalysis('ORACLE_UPLINK_FAILURE: Data stream corrupted.');
-      } finally {
+        // ── PATH 3: Dev Groq fallback (NEVER in production) ───────────────────
+        const devKey = (import.meta as any).env?.VITE_GROQ_API_KEY ?? '';
+        if (!devKey) {
+          setAnalysis('ORACLE_UPLINK_FAILURE: Backend oracle unreachable. No dev key configured.');
+          setOracleMode('error');
+          setLoading(false);
+          return;
+        }
+        try {
+          const res = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${devKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: GROQ_MODEL,
+              messages: [
+                { role: 'system', content: DEV_SYSTEM_PROMPT },
+                { role: 'user',   content: buildDevQuery(item) },
+              ],
+              temperature: 0.35,
+              max_tokens: 700,
+            }),
+          });
+          const json = await res.json();
+          const text = json?.choices?.[0]?.message?.content ?? '';
+          setAnalysis(text || `ORACLE_UPLINK_FAILURE: ${json?.error?.message ?? 'No content.'}`);
+          setOracleMode(text ? 'dev-fallback' : 'error');
+        } catch (e: any) {
+          setAnalysis(`ORACLE_UPLINK_FAILURE: ${e?.message ?? 'All oracle paths failed.'}`);
+          setOracleMode('error');
+        }
         setLoading(false);
       }
     };
 
     run();
-  }, [item]);
+  }, [item, oracle.loading, oracle.risk_level, oracle.sections.kill_chain?.summary]);
+
+  const modeBadge: Record<OracleMode, { label: string; color: string }> = {
+    unified:       { label: 'UNIFIED · NYX', color: 'text-cyan-400' },
+    'kc-snapshot': { label: 'KC · GROQ',     color: 'text-orange-400' },
+    'dev-fallback':{ label: 'DEV · GROQ',    color: 'text-yellow-500' },
+    error:         { label: 'OFFLINE',        color: 'text-rose-500' },
+  };
+  const badge = modeBadge[oracleMode];
 
   return (
     <motion.div
@@ -83,11 +174,11 @@ Slug: ${item.slug ?? 'n/a'}`;
         <div className="flex items-center gap-3">
           <Crosshair className="w-5 h-5 text-emerald-500" />
           <div>
-            <span className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+            <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">
               Execution Oracle
             </span>
             <span className="block text-sm font-black text-white uppercase tracking-tighter">
-              ZETA_STRATEGY_NODE
+              ZETA_STRATEGY_NODE · <span className={`text-xs ${badge.color}`}>{badge.label}</span>
             </span>
           </div>
         </div>
@@ -107,9 +198,14 @@ Slug: ${item.slug ?? 'n/a'}`;
               <div className="absolute inset-0 border-2 border-emerald-500/10 rounded-full" />
               <div className="absolute inset-0 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
             </div>
-            <span className="text-[10px] font-black font-mono text-emerald-400 uppercase tracking-[0.6em] animate-pulse">
-              Running Confluence Scan
-            </span>
+            <div className="text-center space-y-1">
+              <span className="block text-[10px] font-black font-mono text-emerald-400 uppercase tracking-[0.6em] animate-pulse">
+                Running Confluence Scan
+              </span>
+              <span className="block text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
+                Groq · Llama 3.3 70B
+              </span>
+            </div>
           </div>
         ) : (
           <>
@@ -122,7 +218,7 @@ Slug: ${item.slug ?? 'n/a'}`;
               <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 space-y-4 shadow-inner">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">
+                    <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">
                       Signal Node
                     </span>
                     <span className="block text-sm font-black text-white">{item.title ?? item.action}</span>
@@ -141,7 +237,7 @@ Slug: ${item.slug ?? 'n/a'}`;
                   <span className="text-3xl font-black text-white font-mono tracking-tighter">
                     {item.value ?? item.price}
                   </span>
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                  <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">
                     SLUG: {item.slug ?? 'n/a'}
                   </span>
                 </div>
@@ -153,37 +249,14 @@ Slug: ${item.slug ?? 'n/a'}`;
               <div className="flex items-center gap-3">
                 <MessageSquareCode className="w-4 h-4 text-purple-500" />
                 <span className="text-xs font-black text-white uppercase tracking-widest">Oracle Analysis</span>
+                <span className={`ml-auto flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${badge.color}`}>
+                  <Zap className="w-3 h-3" /> {badge.label}
+                </span>
               </div>
-              <div className="text-xs text-zinc-400 leading-relaxed font-medium whitespace-pre-wrap font-sans bg-zinc-950/30 p-5 rounded-xl border border-white/[0.02]">
+              <div className="text-sm text-zinc-300 leading-relaxed font-medium whitespace-pre-wrap font-sans bg-zinc-950/30 p-5 rounded-xl border border-white/[0.02]">
                 {analysis}
               </div>
             </section>
-
-            {/* Sources */}
-            {sources.length > 0 && (
-              <section className="space-y-4 pt-4 border-t border-white/5">
-                <div className="flex items-center gap-3">
-                  <FileSearch className="w-4 h-4 text-cyan-500" />
-                  <span className="text-xs font-black text-white uppercase tracking-widest">Market Context</span>
-                </div>
-                <div className="space-y-2">
-                  {sources.map((s, i) => (
-                    <a
-                      key={i}
-                      href={s.uri}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-lg border border-white/[0.03] hover:border-cyan-500/30 transition-all group"
-                    >
-                      <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-bold truncate max-w-[300px]">
-                        {s.title}
-                      </span>
-                      <ExternalLink className="w-3 h-3 text-zinc-700 group-hover:text-cyan-500" />
-                    </a>
-                  ))}
-                </div>
-              </section>
-            )}
           </>
         )}
       </div>

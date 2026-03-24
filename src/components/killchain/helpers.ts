@@ -1,4 +1,4 @@
-import { KillChainLayer, RawHistoryEntry } from './types';
+import type { KillChainLayer, RawHistoryEntry } from './types';
 
 /** Count active layers from a raw log entry. */
 export function deriveLayers(entry: RawHistoryEntry): { active: number; total: number } {

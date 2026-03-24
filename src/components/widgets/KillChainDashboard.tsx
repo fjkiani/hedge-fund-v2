@@ -75,6 +75,29 @@ export function KillChainDashboard() {
   const kc = data.kill_chain ?? EMPTY_KC;
   const spotPrice = data.current_state?.spy_price ?? 0;
 
+  /** Full snapshot passed to every Oracle call so it can reason with real state */
+  const buildContext = (layerBrief: AiBriefingItem): AiBriefingItem => ({
+    ...layerBrief,
+    killChainContext: {
+      score:           kc.score,
+      verdict:         kc.verdict,
+      direction:       kc.direction,
+      confluence:      kc.confluence,
+      triggered_count: kc.triggered_count,
+      armed:           kc.armed,
+      bullish_points:  kc.bullish_points,
+      bearish_points:  kc.bearish_points,
+      spy_spot:        spotPrice,
+      total_checks:    data.total_checks,
+      activations:     data.activations,
+      layers: [
+        { name: kc.layer_1.name, triggered: kc.layer_1.triggered, value: kc.layer_1.value, unit: kc.layer_1.unit, signal: kc.layer_1.signal },
+        { name: kc.layer_2.name, triggered: kc.layer_2.triggered, value: kc.layer_2.value, unit: kc.layer_2.unit, signal: kc.layer_2.signal },
+        { name: kc.layer_3.name, triggered: kc.layer_3.triggered, value: kc.layer_3.value, unit: kc.layer_3.unit, signal: kc.layer_3.signal },
+      ],
+    },
+  });
+
   return (
     <div className="space-y-8">
       <KillChainHeader
@@ -82,20 +105,26 @@ export function KillChainDashboard() {
         totalChecks={data.total_checks}
         activations={data.activations}
         lastRefresh={lastRefresh}
+        onRefresh={fetchData}
       />
 
       {/* Confluence layer cards */}
       <div className="flex gap-8">
         {LAYERS.map(({ title, key }) => (
-          <ConfluenceCard key={key} title={title} layer={kc[key]} onClick={setBrief} />
+          <ConfluenceCard
+            key={key}
+            title={title}
+            layer={kc[key]}
+            onClick={(item) => setBrief(buildContext(item))}
+          />
         ))}
       </div>
 
-      <PnlWidget position={kc.position} spotPrice={spotPrice} onDrillDown={setBrief} />
+      <PnlWidget position={kc.position} spotPrice={spotPrice} onDrillDown={(item) => setBrief(buildContext(item))} />
 
-      <SignalLog history={data.history ?? []} totalChecks={data.total_checks} onRowClick={setBrief} />
+      <SignalLog history={data.history ?? []} totalChecks={data.total_checks} onRowClick={(item) => setBrief(buildContext(item))} />
 
-      <CpiBanner onDrillDown={setBrief} />
+      <CpiBanner onDrillDown={(item) => setBrief(buildContext(item))} />
 
       {/* AI Oracle slide-out */}
       <AnimatePresence>

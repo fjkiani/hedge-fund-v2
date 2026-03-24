@@ -20,8 +20,8 @@
     
     /* Text */
     --text-primary: #ffffff;
-    --text-secondary: #a0a0b0;
-    --text-muted: #9898a8;
+    --text-secondary: #c4c4d4;   /* was #a0a0b0 — boosted for legibility */
+    --text-muted: #b8b8c8;       /* was #9898a8 — boosted for legibility */
     
     /* Borders */
     --border-subtle: #2a2a35;
@@ -145,3 +145,43 @@
     @apply font-mono tracking-tight;
   }
 }
+
+/* ── Theme Toggle: Light Mode ──────────────────────────────────────────────
+   Single CSS rule inverts the entire UI to light mode.
+   Images, canvas, video, and SVG icons get a counter-filter so they
+   render correctly (not double-inverted).
+   Transition gives a smooth 200ms crossfade on toggle.
+──────────────────────────────────────────────────────────────────────────── */
+html {
+  transition: filter 200ms ease;
+}
+
+html[data-theme="light"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Counter-invert media so it doesn't look wrong */
+html[data-theme="light"] img,
+html[data-theme="light"] video,
+html[data-theme="light"] canvas,
+html[data-theme="light"] .no-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* ── Universal Text Legibility ─────────────────────────────────────────────
+   Tagless class remaps — applies to every element (h2, h3, button, td etc.)
+   with these text color classes. bg-zinc-* and border-zinc-* unaffected.
+   Overrides Tailwind defaults via cascade order (declared after utilities).
+   Covers ALL widgets: COT, Dark Pool, Kill Chain, Econ Exploit, Gamma, etc.
+──────────────────────────────────────────────────────────────────────────── */
+
+/* zinc remaps (used by most widgets) */
+.text-zinc-700 { color: rgb(161 161 170) !important; } /* → zinc-400 */
+.text-zinc-600 { color: rgb(161 161 170) !important; } /* → zinc-400 */
+.text-zinc-500 { color: rgb(212 212 216) !important; } /* → zinc-300 */
+
+/* gray remaps (used by GammaTracker) */
+.text-gray-700 { color: rgb(156 163 175) !important; } /* → gray-400 */
+.text-gray-600 { color: rgb(156 163 175) !important; } /* → gray-400 */
+.text-gray-500 { color: rgb(209 213 219) !important; } /* → gray-300 */
+.text-gray-400 { color: rgb(209 213 219) !important; } /* → gray-300 */

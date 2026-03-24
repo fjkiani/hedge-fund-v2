@@ -9,6 +9,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { gammaApi, createWebSocket } from '../../lib/api';
+import { useGammaPivotContext } from '../../hooks/useGammaPivotContext';
 
 interface GammaTrackerProps {
   symbol?: string;
@@ -51,6 +52,7 @@ export function GammaTracker({
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const oracleCtx = useGammaPivotContext();
 
   const fetchData = async () => {
     try {
@@ -145,11 +147,11 @@ export function GammaTracker({
       <Card>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Gamma Tracker</h2>
+            <h2 className="text-xl font-bold text-white">Gamma Tracker</h2>
             <Badge variant="neutral">Loading...</Badge>
           </div>
           <div className="h-64 flex items-center justify-center">
-            <div className="text-gray-500">Loading gamma data...</div>
+            <div className="text-zinc-400 font-mono text-sm">Loading gamma data...</div>
           </div>
         </div>
       </Card>
@@ -161,11 +163,11 @@ export function GammaTracker({
       <Card>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Gamma Tracker</h2>
+            <h2 className="text-xl font-bold text-white">Gamma Tracker</h2>
             <Badge variant="bearish">Error</Badge>
           </div>
           <div className="h-64 flex items-center justify-center">
-            <div className="text-red-500">{error}</div>
+            <div className="text-rose-400 font-mono text-sm">{error}</div>
           </div>
         </div>
       </Card>
@@ -185,14 +187,12 @@ export function GammaTracker({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold">Gamma Tracker</h2>
-            <p className="text-sm text-gray-500">{symbol}</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight">Gamma Tracker</h2>
+            <p className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-widest mt-0.5">{symbol}</p>
           </div>
           <div className="flex items-center gap-2">
             {wsConnected && (
-              <Badge variant="bullish" className="text-xs">
-                Live
-              </Badge>
+              <Badge variant="bullish" className="text-xs">Live</Badge>
             )}
             <Badge variant={regimeBadgeVariant}>
               {gammaData.current_regime} GAMMA
@@ -201,91 +201,109 @@ export function GammaTracker({
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-            <div className="text-sm text-gray-500 mb-1">Gamma Flip Level</div>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Gamma Flip Level</div>
             {gammaData.gamma_flip_level ? (
               <>
-                <div className="text-lg font-bold">{formatPrice(gammaData.gamma_flip_level)}</div>
+                <div className="text-lg font-black text-white font-mono">{formatPrice(gammaData.gamma_flip_level)}</div>
                 {gammaData.distance_to_flip && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {gammaData.distance_to_flip.toFixed(2)} away
+                  <div className="text-xs font-mono text-zinc-400 mt-1">
+                    {gammaData.distance_to_flip.toFixed(2)} pts away
                   </div>
                 )}
               </>
             ) : (
-              <div className="text-sm text-gray-400">N/A</div>
+              <div className="text-sm text-zinc-500">N/A</div>
             )}
           </div>
 
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-            <div className="text-sm text-gray-500 mb-1">Max Pain</div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Max Pain</div>
             {gammaData.max_pain ? (
-              <div className="text-lg font-bold">{formatPrice(gammaData.max_pain)}</div>
+              <>
+                <div className="text-lg font-black text-white font-mono">{formatPrice(gammaData.max_pain)}</div>
+                {/* distance from max pain — oracle-enriched */}
+                {oracleCtx.distance_from_max_pain != null ? (
+                  <div className={`text-xs font-mono mt-1 ${
+                    oracleCtx.distance_from_max_pain > 0 ? 'text-rose-400' : 'text-emerald-400'
+                  }`}>
+                    {oracleCtx.distance_from_max_pain > 0 ? '+' : ''}{oracleCtx.distance_from_max_pain.toFixed(2)} pts
+                  </div>
+                ) : null}
+              </>
             ) : (
-              <div className="text-sm text-gray-400">N/A</div>
+              <div className="text-sm text-zinc-500">N/A</div>
             )}
           </div>
 
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-            <div className="text-sm text-gray-500 mb-1">Total GEX</div>
-            <div className="text-lg font-bold">{formatGEX(gammaData.total_gex)}</div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Total GEX</div>
+            <div className="text-lg font-black text-white font-mono">{formatGEX(gammaData.total_gex)}</div>
           </div>
 
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-            <div className="text-sm text-gray-500 mb-1">Call/Put Ratio</div>
-            <div className="text-lg font-bold">{gammaData.call_put_ratio.toFixed(2)}</div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Call / Put Ratio</div>
+            <div className="text-lg font-black text-white font-mono">{gammaData.call_put_ratio.toFixed(2)}</div>
+            <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
               <div
-                className={`h-2 rounded-full ${gammaData.call_put_ratio > 1.0 ? 'bg-green-500' : 'bg-red-500'}`}
+                className={`h-1.5 rounded-full ${gammaData.call_put_ratio > 1.0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
                 style={{ width: `${Math.min(gammaData.call_put_ratio * 50, 100)}%` }}
               />
             </div>
-            <div className="text-xs text-gray-500 mt-1">
-              {gammaData.call_put_ratio > 1.0 ? 'Bullish' : 'Bearish'}
+            <div className="text-xs font-bold text-zinc-400 mt-1.5">
+              {gammaData.call_put_ratio > 1.0 ? '▲ Bullish skew' : '▼ Bearish skew'}
             </div>
           </div>
         </div>
 
+        {/* Oracle Context Strip — band label from unified brief */}
+        {oracleCtx.isLoaded && oracleCtx.bandLabel !== '—' && (
+          <div className="mb-6 px-3 py-2 rounded-lg bg-zinc-900/60 border border-zinc-700/40 flex items-center gap-2">
+            <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest shrink-0">NYX READ</span>
+            <span className="text-xs font-mono text-zinc-200">{oracleCtx.bandLabel}</span>
+          </div>
+        )}
+
         {/* Contract Volume Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-xs text-gray-500">Total Contracts</div>
-            <div className="text-sm font-bold">{(gammaData.total_contracts || 0).toLocaleString()}</div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 text-center">
+            <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Contracts</div>
+            <div className="text-sm font-black text-white font-mono">{(gammaData.total_contracts || 0).toLocaleString()}</div>
           </div>
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-xs text-green-500">Calls</div>
-            <div className="text-sm font-bold text-green-600">{(gammaData.total_calls || 0).toLocaleString()}</div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 text-center">
+            <div className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Calls</div>
+            <div className="text-sm font-black text-emerald-400 font-mono">{(gammaData.total_calls || 0).toLocaleString()}</div>
           </div>
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-xs text-red-500">Puts</div>
-            <div className="text-sm font-bold text-red-600">{(gammaData.total_puts || 0).toLocaleString()}</div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 text-center">
+            <div className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">Puts</div>
+            <div className="text-sm font-black text-rose-400 font-mono">{(gammaData.total_puts || 0).toLocaleString()}</div>
           </div>
         </div>
 
         {/* Current Price vs Key Levels */}
         {gammaData.current_price > 0 && (
           <div className="mb-6">
-            <h3 className="text-sm font-semibold mb-3">Price vs Key Levels</h3>
+            <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">Price vs Key Levels</h3>
             <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-                <span className="text-sm font-medium">Current Price</span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                <span className="text-sm font-bold text-zinc-300">Current Price</span>
+                <span className="text-lg font-black text-cyan-400 font-mono">
                   {formatPrice(gammaData.current_price)}
                 </span>
               </div>
               {gammaData.gamma_flip_level && (
-                <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <span className="text-sm font-medium">Gamma Flip</span>
-                  <span className={`text-lg font-bold ${isPositiveGamma ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <span className="text-sm font-bold text-zinc-300">Gamma Flip</span>
+                  <span className={`text-lg font-black font-mono ${isPositiveGamma ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {formatPrice(gammaData.gamma_flip_level)}
                   </span>
                 </div>
               )}
               {gammaData.max_pain && (
-                <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <span className="text-sm font-medium">Max Pain</span>
-                  <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <span className="text-sm font-bold text-zinc-300">Max Pain</span>
+                  <span className="text-lg font-black font-mono text-amber-400">
                     {formatPrice(gammaData.max_pain)}
                   </span>
                 </div>
@@ -297,10 +315,10 @@ export function GammaTracker({
         {/* Gamma Exposure Chart */}
         {chartData.length > 0 && (
           <div>
-            <h3 className="text-sm font-semibold mb-3">Gamma Exposure by Strike</h3>
+            <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">Gamma Exposure by Strike</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis
                   dataKey="strike"
                   type="number"
@@ -352,11 +370,11 @@ export function GammaTracker({
         )}
 
         {/* Regime Explanation */}
-        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <div className="text-sm font-semibold mb-2">
+        <div className="mt-6 p-4 bg-white/[0.03] border border-white/5 rounded-xl">
+          <div className="text-sm font-black text-white mb-2">
             {isPositiveGamma ? '🟢 Positive Gamma Regime' : '🔴 Negative Gamma Regime'}
           </div>
-          <div className="text-xs text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-zinc-300">
             {isPositiveGamma
               ? 'Dealers are long options (stabilizing). Price moves are dampened. Buy dips, sell rallies.'
               : 'Dealers are short options (amplifying). Price moves are accelerated. Momentum trades favored.'}
@@ -366,14 +384,14 @@ export function GammaTracker({
         {/* Gamma Walls Table */}
         {gammaData.gamma_walls && gammaData.gamma_walls.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-semibold mb-2">Top Gamma Walls</h3>
-            <div className="space-y-1">
+            <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">Top Gamma Walls</h3>
+            <div className="space-y-1.5">
               {gammaData.gamma_walls.slice(0, 5).map((wall, i) => (
-                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-                  <span className="font-medium">${wall.strike.toFixed(0)}</span>
-                  <span className={wall.signal === 'SUPPORT' ? 'text-green-500' : 'text-red-500'}>{wall.signal}</span>
-                  <span className="text-gray-500">GEX: {formatGEX(wall.gex)}</span>
-                  <span className="text-gray-400">OI: {wall.open_interest.toLocaleString()}</span>
+                <div key={i} className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <span className="text-sm font-black text-white font-mono">${wall.strike.toFixed(0)}</span>
+                  <span className={`text-xs font-black uppercase tracking-wide ${wall.signal === 'SUPPORT' ? 'text-emerald-400' : 'text-rose-400'}`}>{wall.signal}</span>
+                  <span className="text-xs font-mono font-bold text-zinc-300">GEX: {formatGEX(wall.gex)}</span>
+                  <span className="text-xs font-mono text-zinc-400">OI: {wall.open_interest.toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -381,7 +399,7 @@ export function GammaTracker({
         )}
 
         {/* Source label */}
-        <div className="mt-3 text-xs text-gray-400 text-right">
+        <div className="mt-4 text-xs font-mono font-bold text-zinc-500 text-right uppercase tracking-widest">
           Source: {gammaData.source?.toUpperCase() || 'CBOE'}
         </div>
       </div>

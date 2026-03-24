@@ -78,4 +78,28 @@ export interface AiBriefingItem {
   meaning?: string;
   status?: string;
   slug?: string;
+  /** Full Kill Chain snapshot — injected by KillChainDashboard for rich Oracle context */
+  killChainContext?: KillChainContext;
+}
+
+/** Full Kill Chain state snapshot passed to the Oracle for context-aware analysis */
+export interface KillChainContext {
+  score: number;
+  verdict: string;
+  direction: string;
+  confluence: string;
+  triggered_count: number;
+  armed: boolean;
+  bullish_points: number;
+  bearish_points: number;
+  spy_spot: number;
+  layers: {
+    name: string;
+    triggered: boolean;
+    value: number;
+    unit: string;
+    signal: string;
+  }[];
+  total_checks?: number;
+  activations?: number;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { KillChainPosition, AiBriefingItem } from './types';
+import type { KillChainPosition, AiBriefingItem } from './types';
 
 interface Props {
   position: KillChainPosition;

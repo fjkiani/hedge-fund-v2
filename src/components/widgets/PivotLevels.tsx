@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { pivotsApi } from '../../lib/api';
+import { useGammaPivotContext } from '../../hooks/useGammaPivotContext';
 
 interface PivotLevel {
     label: string;
@@ -54,6 +55,7 @@ export function PivotLevels({ symbol = 'SPY' }: PivotLevelsProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeSet, setActiveSet] = useState<string | null>(null);
+    const oracleCtx = useGammaPivotContext();
 
     const fetchData = useCallback(async () => {
         try {
@@ -128,6 +130,26 @@ export function PivotLevels({ symbol = 'SPY' }: PivotLevelsProps) {
                         </button>
                     ))}
                 </div>
+
+                {/* Oracle next_above / next_below directional strip */}
+                {oracleCtx.isLoaded && (oracleCtx.next_above || oracleCtx.next_below) && (
+                    <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 12px', borderRadius: '8px',
+                        background: 'rgba(96, 165, 250, 0.05)', border: '1px solid rgba(96, 165, 250, 0.15)',
+                        fontSize: '11px', fontFamily: 'monospace',
+                    }}>
+                        <span style={{ color: '#6b7280' }}>
+                            {oracleCtx.next_below ? `↓ ${oracleCtx.next_below.toFixed(2)}` : '—'}
+                        </span>
+                        <span style={{ color: '#9ca3af', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {oracleCtx.bandLabel !== '—' ? oracleCtx.bandLabel : 'SPY band'}
+                        </span>
+                        <span style={{ color: '#6b7280' }}>
+                            {oracleCtx.next_above ? `↑ ${oracleCtx.next_above.toFixed(2)}` : '—'}
+                        </span>
+                    </div>
+                )}
 
                 {/* Confluence zones */}
                 {confluenceZones.length > 0 && !activeSet && (

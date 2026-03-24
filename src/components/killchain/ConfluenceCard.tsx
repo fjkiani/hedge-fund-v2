@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
-import { KillChainLayer, AiBriefingItem } from './types';
+import type { KillChainLayer, AiBriefingItem } from './types';
 import { fmtLayerValue, layerGoal, layerMeaning } from './helpers';
 
 interface Props {

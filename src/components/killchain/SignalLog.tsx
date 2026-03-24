@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Terminal } from 'lucide-react';
-import { RawHistoryEntry, AiBriefingItem } from './types';
+import type { RawHistoryEntry, AiBriefingItem } from './types';
 import { deriveLayers, fmtTime, signalRowResult } from './helpers';
 
 interface Props {
@@ -37,15 +37,15 @@ export const SignalLog: React.FC<Props> = ({ history, totalChecks, onRowClick })
             Zeta Signal Log (Latest 20)
           </h3>
         </div>
-        <span className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest italic">
-          Polling every 30min on Render hub · {totalChecks} checks total
+        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+          Polling every 30min · {totalChecks} checks total
         </span>
       </div>
 
       {/* Table */}
       <div className="bg-[#0c0c0e] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="bg-white/[0.02] border-b border-white/5 px-8 py-4 grid grid-cols-12 text-[10px] font-black text-zinc-700 uppercase tracking-widest">
+        <div className="bg-white/[0.02] border-b border-white/5 px-8 py-4 grid grid-cols-12 text-xs font-black text-zinc-400 uppercase tracking-widest">
           <div className="col-span-2">Time</div>
           <div className="col-span-3">Action</div>
           <div className="col-span-2">Price</div>
@@ -56,7 +56,7 @@ export const SignalLog: React.FC<Props> = ({ history, totalChecks, onRowClick })
         {/* Rows */}
         <div className="divide-y divide-white/[0.03]">
           {rows.length === 0 && (
-            <div className="px-8 py-8 text-center text-[10px] text-zinc-700 font-mono uppercase tracking-widest">
+            <div className="px-8 py-8 text-center text-sm text-zinc-400 font-mono">
               No signals logged yet — monitoring active
             </div>
           )}
@@ -90,7 +90,7 @@ export const SignalLog: React.FC<Props> = ({ history, totalChecks, onRowClick })
                 <div className="col-span-2 text-xs font-mono font-bold text-white">
                   ${(entry.spy_price ?? 0).toFixed(2)}
                 </div>
-                <div className="col-span-2 text-xs font-mono font-bold text-zinc-600">
+                <div className="col-span-2 text-xs font-mono font-bold text-zinc-300">
                   {active}/{total}
                 </div>
                 <div
