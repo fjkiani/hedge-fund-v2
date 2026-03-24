@@ -23,9 +23,12 @@ export function OracleBriefStrip() {
   const oracle = useOracle();
 
   // Hide entirely when unavailable or UNKNOWN
-  if (!oracle || oracle.risk_level === 'UNKNOWN' || !oracle.verdict) return null;
+  if (!oracle || oracle.loading || oracle.risk_level === 'UNKNOWN' || !oracle.verdict) return null;
 
   const styles = RISK_STYLES[oracle.risk_level] ?? RISK_STYLES.LOW;
+  const ts = oracle.generated_at
+    ? new Date(oracle.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   return (
     <div
@@ -55,10 +58,7 @@ export function OracleBriefStrip() {
         </>
       )}
 
-      {/* Timestamp */}
-      <span className="oracle-strip-ts">
-        {new Date(oracle.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ET
-      </span>
+      {ts && <span className="oracle-strip-ts">{ts} ET</span>}
     </div>
   );
 }

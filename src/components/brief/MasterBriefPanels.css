@@ -730,3 +730,45 @@
   margin-left: auto;
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════════════
+   🔮 Oracle Panel Read — ambient NYX line under each panel
+   ═══════════════════════════════════════════════════════ */
+
+.mb-oracle-read {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(139, 92, 246, 0.06);
+  border-left: 2px solid rgba(139, 92, 246, 0.35);
+  border-radius: 0 4px 4px 0;
+  flex-wrap: wrap;
+}
+
+.mb-oracle-read__label {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #a78bfa;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.mb-oracle-read__text {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: #94a3b8;
+  flex: 1;
+  line-height: 1.5;
+}
+
+.mb-oracle-read__conf {
+  font-size: 0.6rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #a78bfa;
+  opacity: 0.7;
+  flex-shrink: 0;
+  margin-left: auto;
+}
