@@ -3,9 +3,13 @@ import { motion } from 'framer-motion';
 import type { DPPrint } from './types';
 import { formatPrice, formatVolume } from './types';
 
-interface Props { prints: DPPrint[] }
+interface Props {
+  prints: DPPrint[];
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
+}
 
-export const DPPrintsTable: React.FC<Props> = ({ prints }) => (
+export const DPPrintsTable: React.FC<Props> = ({ prints, onDrillDown, activeSlug }) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
@@ -25,7 +29,11 @@ export const DPPrintsTable: React.FC<Props> = ({ prints }) => (
     ) : (
       <div className="divide-y divide-white/5 max-h-56 overflow-y-auto">
         {prints.map((print, i) => (
-          <div key={i} className="flex items-center justify-between px-6 py-3 hover:bg-white/[0.02] transition-colors">
+          <div
+            key={i}
+            onClick={() => onDrillDown?.({ slug: `DP:PRINT_${i}`, title: 'Dark Pool Print', actual: formatPrice(print.price), surprise: formatVolume(print.volume), signal: print.side })}
+            className={`flex items-center justify-between px-6 py-3 cursor-pointer transition-colors ${activeSlug === `DP:PRINT_${i}` ? 'bg-white/[0.05] border-l-2 border-cyan-500' : 'hover:bg-white/[0.02] border-l-2 border-transparent'}`}
+          >
             <div className="flex items-center gap-4">
               <span className={`inline-flex items-center justify-center w-12 px-2 py-0.5 rounded text-[10px] font-black border ${
                 print.side === 'BUY'

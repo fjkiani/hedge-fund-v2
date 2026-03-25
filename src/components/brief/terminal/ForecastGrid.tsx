@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Zap, BarChart4, ChevronDown } from 'lucide-react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { MetricBadge } from './primitives';
 import { InlineOracleBriefing } from './InlineOracleBriefing';
 

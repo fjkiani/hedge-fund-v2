@@ -3,9 +3,13 @@ import { motion } from 'framer-motion';
 import type { DPSummary } from './types';
 import { formatPrice, formatVolume, fmt } from './types';
 
-interface NearestLevelsProps { summary: DPSummary }
+interface NearestLevelsProps {
+  summary: DPSummary;
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
+}
 
-export const DPNearestLevels: React.FC<NearestLevelsProps> = ({ summary }) => {
+export const DPNearestLevels: React.FC<NearestLevelsProps> = ({ summary, onDrillDown, activeSlug }) => {
   const { nearest_support, nearest_resistance } = summary;
   if (!nearest_support && !nearest_resistance) return null;
 
@@ -16,7 +20,8 @@ export const DPNearestLevels: React.FC<NearestLevelsProps> = ({ summary }) => {
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-[#0c0c0e] border border-emerald-500/20 rounded-2xl overflow-hidden"
+          onClick={() => onDrillDown?.({ slug: 'DP:NEAREST_SUPPORT', title: 'Nearest Support', actual: formatPrice(nearest_support.price), surprise: formatVolume(nearest_support.volume) })}
+          className={`bg-[#0c0c0e] border rounded-2xl overflow-hidden cursor-pointer transition-all hover:border-emerald-500/40 ${activeSlug === 'DP:NEAREST_SUPPORT' ? 'border-emerald-500/40 ring-1 ring-emerald-500/10' : 'border-emerald-500/20'}`}
         >
           <div className="px-4 py-2 border-b border-emerald-500/10 text-[10px] font-black font-mono text-emerald-500 uppercase tracking-[0.3em]">
             Nearest Support
@@ -37,7 +42,8 @@ export const DPNearestLevels: React.FC<NearestLevelsProps> = ({ summary }) => {
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-[#0c0c0e] border border-rose-500/20 rounded-2xl overflow-hidden"
+          onClick={() => onDrillDown?.({ slug: 'DP:NEAREST_RESISTANCE', title: 'Nearest Resistance', actual: formatPrice(nearest_resistance.price), surprise: formatVolume(nearest_resistance.volume) })}
+          className={`bg-[#0c0c0e] border rounded-2xl overflow-hidden cursor-pointer transition-all hover:border-rose-500/40 ${activeSlug === 'DP:NEAREST_RESISTANCE' ? 'border-rose-500/40 ring-1 ring-rose-500/10' : 'border-rose-500/20'}`}
         >
           <div className="px-4 py-2 border-b border-rose-500/10 text-[10px] font-black font-mono text-rose-500 uppercase tracking-[0.3em]">
             Nearest Resistance

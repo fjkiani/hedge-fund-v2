@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Ghost, Workflow, LineChart, Crosshair, History } from 'lucide-react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { useOracle } from '../OracleContext';
 import { InlineOracleBriefing } from './InlineOracleBriefing';
 import { fmtUsd, fmtGex } from './helpers';

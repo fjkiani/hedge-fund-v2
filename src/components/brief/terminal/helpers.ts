@@ -1,4 +1,4 @@
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 
 export function fmt(n: number | null | undefined, decimals = 0): string {
   if (n == null) return '—';

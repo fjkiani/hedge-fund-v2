@@ -6,6 +6,8 @@ import { formatVolume, formatDollars } from './types';
 interface Props {
   summary: DPSummary;
   currentPrice: number | null;
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
 }
 
 const StatCard = ({
@@ -17,6 +19,8 @@ const StatCard = ({
   barPct,
   barColor,
   delay = 0,
+  onClick,
+  isActive,
 }: {
   label: string;
   value: string;
@@ -26,12 +30,15 @@ const StatCard = ({
   barPct?: number;
   barColor?: string;
   delay?: number;
+  onClick?: () => void;
+  isActive?: boolean;
 }) => (
   <motion.div
     initial={{ opacity: 0, y: 16 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="bg-[#0c0c0e] border border-white/5 rounded-2xl p-6 flex-1 shadow-xl relative overflow-hidden group"
+    onClick={onClick}
+    className={`bg-[#0c0c0e] border rounded-2xl p-6 flex-1 shadow-xl relative overflow-hidden group transition-all ${onClick ? 'cursor-pointer hover:border-cyan-500/30' : ''} ${isActive ? 'border-cyan-500/30 ring-1 ring-cyan-500/10' : 'border-white/5'}`}
   >
     <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-[0.04] group-hover:opacity-[0.08] transition-opacity"
       style={{ backgroundColor: barColor ?? '#22d3ee' }}
@@ -55,7 +62,7 @@ const StatCard = ({
   </motion.div>
 );
 
-export const DPStatCards: React.FC<Props> = ({ summary, currentPrice }) => {
+export const DPStatCards: React.FC<Props> = ({ summary, currentPrice, onDrillDown, activeSlug }) => {
   const dpPct = summary.dp_percent;
   const bp = summary.buying_pressure;
   const svPct = summary.short_volume_pct;
@@ -72,6 +79,8 @@ export const DPStatCards: React.FC<Props> = ({ summary, currentPrice }) => {
         subtext={summary.dp_position_dollars ? `${formatDollars(summary.dp_position_dollars)} notional` : undefined}
         delay={0.05}
         barColor="#22d3ee"
+        onClick={() => onDrillDown?.({ slug: 'DP:TOTAL_VOL', title: 'Total Off-Exchange Volume', actual: formatVolume(summary.total_volume), signal: 'NEUTRAL' })}
+        isActive={activeSlug === 'DP:TOTAL_VOL'}
       />
 
       {/* DP % */}
@@ -84,6 +93,8 @@ export const DPStatCards: React.FC<Props> = ({ summary, currentPrice }) => {
         delay={0.1}
         barColor={dpColor}
         barPct={dpPct}
+        onClick={() => onDrillDown?.({ slug: 'DP:DP_PCT', title: 'Dark Pool Percentage', actual: `${dpPct.toFixed(1)}%`, signal: dpPct > 50 ? 'HOT' : 'COLD' })}
+        isActive={activeSlug === 'DP:DP_PCT'}
       />
 
       {/* Buying Pressure */}
@@ -95,6 +106,8 @@ export const DPStatCards: React.FC<Props> = ({ summary, currentPrice }) => {
         delay={0.15}
         barColor={bpColor}
         barPct={bp}
+        onClick={() => onDrillDown?.({ slug: 'DP:BUYING_PRESSURE', title: 'Buying Pressure', actual: `${bp.toFixed(1)}%`, signal: bp >= 55 ? 'BULLISH' : bp <= 45 ? 'BEARISH' : 'NEUTRAL' })}
+        isActive={activeSlug === 'DP:BUYING_PRESSURE'}
       />
 
       {/* Current Price (right-aligned) */}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Satellite, Landmark, LineChart } from 'lucide-react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { MetricBadge } from './primitives';
 import { InlineOracleBriefing } from './InlineOracleBriefing';
 import { fmtPct } from './helpers';

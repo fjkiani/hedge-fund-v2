@@ -1,5 +1,5 @@
 import React from 'react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { CommandBlock } from './primitives';
 
 export function LiveMacroCommandBar({ data }: { data: MasterBrief }) {

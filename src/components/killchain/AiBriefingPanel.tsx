@@ -10,7 +10,8 @@ interface Props {
 }
 
 // ── Route constants — production: backend only, dev: Groq fallback allowed ─────
-const KC_ANALYZE_URL = `${(import.meta as any).env?.VITE_API_URL ?? '/api/v1'}/oracle/analyze`;
+const KC_API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
+const KC_ANALYZE_URL = `${KC_API_BASE}/oracle/analyze`;
 const GROQ_API_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL     = 'llama-3.3-70b-versatile';
 
@@ -106,9 +107,9 @@ export const AiBriefingPanel: React.FC<Props> = ({ item, onClose }) => {
         });
         if (res.ok) {
           const json = await res.json();
-          if (json.analysis && !json.error) {
+          if (json.analysis) {
             setAnalysis(json.analysis);
-            setOracleMode('kc-snapshot');
+            setOracleMode(json.error ? 'error' : 'kc-snapshot');
             setLoading(false);
             return;
           }

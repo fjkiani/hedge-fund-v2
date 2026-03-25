@@ -3,7 +3,11 @@ import { motion } from 'framer-motion';
 import type { DPTopPosition } from './types';
 import { formatVolume, formatDollars } from './types';
 
-interface Props { positions: DPTopPosition[] }
+interface Props {
+  positions: DPTopPosition[];
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
+}
 
 /* ── Dynamic tooltip for Short Vol % context ── */
 function ShortVolTooltip({ ticker, pct }: { ticker: string; pct: number }) {
@@ -52,7 +56,7 @@ function ShortVolTooltip({ ticker, pct }: { ticker: string; pct: number }) {
   );
 }
 
-export const DPTopPositions: React.FC<Props> = ({ positions }) => {
+export const DPTopPositions: React.FC<Props> = ({ positions, onDrillDown, activeSlug }) => {
   if (positions.length === 0) return null;
 
   return (
@@ -84,7 +88,11 @@ export const DPTopPositions: React.FC<Props> = ({ positions }) => {
             {positions.slice(0, 8).map((pos, i) => {
               const sv = pos.short_volume_pct;
               return (
-                <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                <tr
+                  key={i}
+                  onClick={() => onDrillDown?.({ slug: `DP:POS_${pos.ticker}`, title: `${pos.ticker} Dark Pool Position`, actual: formatDollars(pos.dp_position_dollars), surprise: `${sv.toFixed(1)}% Short Vol` })}
+                  className={`cursor-pointer transition-colors ${activeSlug === `DP:POS_${pos.ticker}` ? 'bg-white/[0.05] border-l-2 border-cyan-500' : 'hover:bg-white/[0.02]'}`}
+                >
                   <td className="px-6 py-3 font-black text-white">{pos.ticker}</td>
                   <td className="px-6 py-3 text-right font-mono text-zinc-500 text-xs">{formatVolume(pos.dp_position_shares)}</td>
                   <td className="px-6 py-3 text-right font-mono text-zinc-300 text-xs">{formatDollars(pos.dp_position_dollars)}</td>

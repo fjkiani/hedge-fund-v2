@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bot, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { KillChainSignal } from './SignalFeed';
 
 interface ZOStrategy {
   name: string;
@@ -22,13 +21,12 @@ interface KillChainOraclePanelProps {
   // We can pass the snapshot or raw json in
   snapshot: any;
   loading?: boolean;
-  selectedSignal?: KillChainSignal | null;
 }
 
 const KC_API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
 const KC_ANALYZE_URL = `${KC_API_BASE}/oracle/analyze`;
 
-export function KillChainOraclePanel({ snapshot, loading: parentLoading, selectedSignal }: KillChainOraclePanelProps) {
+export function KillChainOraclePanel({ snapshot, loading: parentLoading }: KillChainOraclePanelProps) {
   const [data, setData] = useState<ZOPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,19 +40,11 @@ export function KillChainOraclePanel({ snapshot, loading: parentLoading, selecte
 
     async function fetchOracle() {
       try {
-        const body = selectedSignal ? {
-          title: selectedSignal.headline,
-          meaning: selectedSignal.detail,
-          slug: selectedSignal.action_trigger,
-          status: selectedSignal.type,
-          value: selectedSignal.data?.spot_price ? `$${selectedSignal.data.spot_price}` : 'N/A',
-          kill_chain_snapshot: snapshot
-        } : {
+        const body = {
           title: "Kill Chain Macro Setup",
           action: "Analyze Confluence",
           kill_chain_snapshot: snapshot
         };
-
         const res = await fetch(KC_ANALYZE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -92,7 +82,7 @@ export function KillChainOraclePanel({ snapshot, loading: parentLoading, selecte
     fetchOracle();
 
     return () => { isMounted = false; };
-  }, [snapshot, parentLoading, selectedSignal]);
+  }, [snapshot, parentLoading]);
 
   // If we don't have snapshot yet
   if (!snapshot && parentLoading) {

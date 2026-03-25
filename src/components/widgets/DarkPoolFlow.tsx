@@ -26,6 +26,8 @@ interface DarkPoolFlowProps {
   symbol?: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
 }
 
 const Loader = () => (
@@ -61,6 +63,8 @@ export function DarkPoolFlow({
   symbol = 'SPY',
   autoRefresh = true,
   refreshInterval = 30_000,
+  onDrillDown,
+  activeSlug,
 }: DarkPoolFlowProps) {
   const [levels, setLevels]           = useState<DPLevel[]>([]);
   const [summary, setSummary]         = useState<DPSummary | null>(null);
@@ -173,21 +177,21 @@ export function DarkPoolFlow({
             >
               {/* Stat cards (volume, DP%, buying pressure) */}
               {summary && (
-                <DPStatCards summary={summary} currentPrice={currentPrice} />
+                <DPStatCards summary={summary} currentPrice={currentPrice} onDrillDown={onDrillDown} activeSlug={activeSlug} />
               )}
 
               {/* Levels volume chart — merges /levels + summary support/resistance */}
               {levels.length > 0 && (
-                <DPVolumeChart levels={levels} summary={summary} />
+                <DPVolumeChart levels={levels} summary={summary} onDrillDown={onDrillDown} activeSlug={activeSlug} />
               )}
 
               {/* Nearest Support / Resistance */}
               {summary && (
-                <DPNearestLevels summary={summary} />
+                <DPNearestLevels summary={summary} onDrillDown={onDrillDown} activeSlug={activeSlug} />
               )}
 
               {/* Recent Prints */}
-              <DPPrintsTable prints={prints} />
+              <DPPrintsTable prints={prints} onDrillDown={onDrillDown} activeSlug={activeSlug} />
 
               {/* DP Narrative (LLM) */}
               {narrative && (
@@ -207,7 +211,7 @@ export function DarkPoolFlow({
               )}
 
               {/* Top Positions table */}
-              <DPTopPositions positions={topPositions} />
+              <DPTopPositions positions={topPositions} onDrillDown={onDrillDown} activeSlug={activeSlug} />
             </motion.div>
           )}
         </AnimatePresence>

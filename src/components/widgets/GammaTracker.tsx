@@ -15,6 +15,8 @@ interface GammaTrackerProps {
   symbol?: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
 }
 
 interface GammaWall {
@@ -45,7 +47,9 @@ interface GammaData {
 export function GammaTracker({
   symbol = 'SPY',
   autoRefresh = true,
-  refreshInterval = 30000 // 30 seconds
+  refreshInterval = 30000,
+  onDrillDown,
+  activeSlug
 }: GammaTrackerProps) {
   const [gammaData, setGammaData] = useState<GammaData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,9 +198,32 @@ export function GammaTracker({
             {wsConnected && (
               <Badge variant="bullish" className="text-xs">Live</Badge>
             )}
-            <Badge variant={regimeBadgeVariant}>
-              {gammaData.current_regime} GAMMA
-            </Badge>
+            {(() => {
+                const slug = `GEX:${symbol}`;
+                const isActive = activeSlug === slug;
+                return (
+                <div
+                    onClick={() => onDrillDown?.({
+                        slug,
+                        title: `Gamma Exposure - ${symbol}`,
+                        label: 'Gamma Regime',
+                        actual: formatGEX(gammaData.total_gex),
+                        signal: gammaData.current_regime,
+                        surprise: gammaData.gamma_flip_level ? `Flip: ${formatPrice(gammaData.gamma_flip_level)}` : ''
+                    })}
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{
+                        border: isActive ? '1px solid rgba(96, 165, 250, 0.5)' : '1px solid transparent',
+                        borderRadius: '99px',
+                        padding: '1px'
+                    }}
+                >
+                    <Badge variant={regimeBadgeVariant}>
+                        {gammaData.current_regime} GAMMA
+                    </Badge>
+                </div>
+                );
+            })()}
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Zap } from 'lucide-react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { InlineOracleBriefing } from './InlineOracleBriefing';
 import { fmt } from './helpers';
 

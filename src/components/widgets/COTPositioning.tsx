@@ -52,7 +52,12 @@ function formatNet(n: number): string {
     return n.toLocaleString();
 }
 
-export function COTPositioning() {
+interface COTProps {
+    onDrillDown?: (item: any) => void;
+    activeSlug?: string;
+}
+
+export function COTPositioning({ onDrillDown, activeSlug }: COTProps) {
     const [data, setData] = useState<COTData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -124,12 +129,26 @@ export function COTPositioning() {
                     const specsWidth = Math.abs(c.specs_net) / (Math.abs(c.specs_net) + Math.abs(c.comm_net) + 1) * 100;
                     const commsWidth = 100 - specsWidth;
 
+                    const isActive = activeSlug === `COT:${c.contract_key}`;
+                    
                     return (
-                        <div key={c.contract_key} style={{
+                        <div key={c.contract_key} 
+                             onClick={() => onDrillDown?.({
+                                 slug: `COT:${c.contract_key}`,
+                                 title: `COT ${c.contract_key}`,
+                                 label: cfg.label,
+                                 actual: `Specs: ${formatNet(c.specs_net)}`,
+                                 signal: c.divergent ? 'DIVERGENT' : 'ALIGN',
+                                 surprise: c.divergence_direction || ''
+                             })}
+                             className="hover:bg-white/[0.02] transition-colors"
+                             style={{
                             display: 'grid', gridTemplateColumns: '100px 1fr 80px 80px 60px',
                             gap: '8px', padding: '8px', borderRadius: '6px', alignItems: 'center',
-                            background: c.divergent ? 'rgba(245, 158, 11, 0.06)' : 'transparent',
+                            background: isActive ? 'rgba(96, 165, 250, 0.15)' : c.divergent ? 'rgba(245, 158, 11, 0.06)' : 'transparent',
                             borderLeft: `3px solid ${cfg.color}`,
+                            border: isActive ? '1px solid rgba(96, 165, 250, 0.3)' : undefined,
+                            cursor: 'pointer',
                         }}>
                             {/* Contract name */}
                             <div>

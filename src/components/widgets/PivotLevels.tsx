@@ -40,6 +40,8 @@ interface PivotData {
 
 interface PivotLevelsProps {
     symbol?: string;
+    onDrillDown?: (item: any) => void;
+    activeSlug?: string;
 }
 
 const SET_COLORS: Record<string, string> = {
@@ -50,7 +52,7 @@ const SET_COLORS: Record<string, string> = {
     EMA: '#f87171',
 };
 
-export function PivotLevels({ symbol = 'SPY' }: PivotLevelsProps) {
+export function PivotLevels({ symbol = 'SPY', onDrillDown, activeSlug }: PivotLevelsProps) {
     const [data, setData] = useState<PivotData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -161,11 +163,26 @@ export function PivotLevels({ symbol = 'SPY' }: PivotLevelsProps) {
                             🎯 Confluence Zones ({confluenceZones.length})
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {confluenceZones.slice(0, 5).map((z, i) => (
-                                <div key={i} style={{
+                            {confluenceZones.slice(0, 5).map((z, i) => {
+                                const slug = `PIVOT:${symbol}`;
+                                const isActive = activeSlug === slug;
+                                return (
+                                <div key={i} 
+                                     onClick={() => onDrillDown?.({
+                                         slug,
+                                         title: `Pivot Confluence - ${symbol}`,
+                                         label: 'Confluence Zone',
+                                         actual: z.avg_price.toFixed(2),
+                                         signal: 'CONFLUENCE',
+                                         surprise: `${z.level_count} levels`
+                                     })}
+                                     className="hover:bg-white/[0.05] transition-colors"
+                                     style={{
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                     fontSize: '12px', padding: '4px 6px', borderRadius: '4px',
-                                    background: 'rgba(0,0,0,0.2)',
+                                    background: isActive ? 'rgba(96, 165, 250, 0.15)' : 'rgba(0,0,0,0.2)',
+                                    border: isActive ? '1px solid rgba(96, 165, 250, 0.3)' : undefined,
+                                    cursor: 'pointer',
                                 }}>
                                     <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>
                                         ${z.avg_price.toFixed(2)}
@@ -174,7 +191,7 @@ export function PivotLevels({ symbol = 'SPY' }: PivotLevelsProps) {
                                         {z.level_count} levels from {z.sets.join(', ')}
                                     </span>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </div>
                 )}

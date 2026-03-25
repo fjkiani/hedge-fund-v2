@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertOctagon } from 'lucide-react';
-import { MasterBrief } from '../../../hooks/useMasterBrief';
+import type { MasterBrief } from '../../../hooks/useMasterBrief';
 import { fmtGex } from './helpers';
 
 export function BreachAlert({ data }: { data: MasterBrief }) {

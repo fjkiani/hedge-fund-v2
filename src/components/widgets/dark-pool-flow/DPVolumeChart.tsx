@@ -5,7 +5,9 @@ import { formatVolume, formatPrice, getLevelColor } from './types';
 
 interface Props {
   levels: DPLevel[];
-  summary?: DPSummary | null;  // extra level sources (nearest_support, resistance, battlegrounds)
+  summary?: DPSummary | null;
+  onDrillDown?: (item: any) => void;
+  activeSlug?: string;
 }
 
 const LEGEND = [
@@ -14,7 +16,7 @@ const LEGEND = [
   { label: 'Battleground',color: '#eab308' },
 ];
 
-export const DPVolumeChart: React.FC<Props> = ({ levels, summary }) => {
+export const DPVolumeChart: React.FC<Props> = ({ levels, summary, onDrillDown, activeSlug }) => {
   const [hovered, setHovered] = useState<number | null>(null);
 
   // Merge all level sources — the /levels endpoint returns the dominant DP print,
@@ -69,9 +71,10 @@ export const DPVolumeChart: React.FC<Props> = ({ levels, summary }) => {
             return (
               <div
                 key={i}
-                className="relative flex items-center gap-4 group cursor-default"
+                className={`relative flex items-center gap-4 group cursor-pointer p-1 rounded transition-colors ${activeSlug === `DP:VOL_${level.price}` ? 'bg-white/5 ring-1 ring-white/10' : 'hover:bg-white/[0.02]'}`}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => onDrillDown?.({ slug: `DP:VOL_${level.price}`, title: `Level ${formatPrice(level.price)}`, actual: formatVolume(level.volume), signal: level.level_type, surprise: `Strength: ${level.strength.toFixed(1)}` })}
               >
                 {/* Price label */}
                 <span className="w-20 text-[11px] font-mono text-zinc-500 text-right flex-shrink-0">

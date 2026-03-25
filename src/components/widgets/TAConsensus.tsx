@@ -33,6 +33,8 @@ interface TAData {
 
 interface TAConsensusProps {
     symbol?: string;
+    onDrillDown?: (item: any) => void;
+    activeSlug?: string;
 }
 
 const SIGNAL_STYLES: Record<string, { bg: string; color: string }> = {
@@ -56,7 +58,7 @@ const CATEGORY_LABELS: Record<string, { emoji: string; label: string }> = {
     trend: { emoji: '📈', label: 'Trend' },
 };
 
-export function TAConsensus({ symbol = 'SPY' }: TAConsensusProps) {
+export function TAConsensus({ symbol = 'SPY', onDrillDown, activeSlug }: TAConsensusProps) {
     const [data, setData] = useState<TAData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -104,11 +106,26 @@ export function TAConsensus({ symbol = 'SPY' }: TAConsensusProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
                 {/* Consensus banner */}
-                {data && (
-                    <div style={{
+                {data && (() => {
+                    const slug = `TA:${symbol}`;
+                    const isActive = activeSlug === slug;
+                    return (
+                    <div 
+                        onClick={() => onDrillDown?.({
+                            slug,
+                            title: `TA Consensus - ${symbol}`,
+                            label: 'Technical Analysis Consensus',
+                            actual: data.consensus,
+                            signal: data.consensus,
+                            surprise: `${data.oversold_count}/${data.total_indicators} OS`
+                        })}
+                        className="hover:bg-white/[0.05] transition-colors"
+                        style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         padding: '12px 16px', borderRadius: '8px',
-                        background: cs.bg, border: `1px solid ${cs.border}`,
+                        background: isActive ? 'rgba(96, 165, 250, 0.15)' : cs.bg, 
+                        border: isActive ? '1px solid rgba(96, 165, 250, 0.3)' : `1px solid ${cs.border}`,
+                        cursor: 'pointer',
                     }}>
                         <div>
                             <div style={{ fontSize: '18px', fontWeight: 800, color: cs.color }}>
@@ -138,7 +155,7 @@ export function TAConsensus({ symbol = 'SPY' }: TAConsensusProps) {
                             </span>
                         </div>
                     </div>
-                )}
+                )})()}
 
                 {/* Indicator groups */}
                 {Object.entries(grouped).map(([category, inds]) => {
