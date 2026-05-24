@@ -6,15 +6,13 @@ import {
 } from 'lucide-react';
 
 import type { KillShotsResponse, KillShotsLayers } from './types';
-import { signalsApi } from '../../../lib/api';
+import { signalsApi, API_URL, MONITOR_URL } from '../../../lib/api';
 import type { SignalData } from '../../ui/SignalSlug';
 
 import { PillarCardGex } from './PillarCardGex';
 import { PillarCardCot } from './PillarCardCot';
 import { PillarCardBrain } from './PillarCardBrain';
 import { PillarCardFedDp } from './PillarCardFedDp';
-
-const MONITOR_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
 
 const VERDICT_STYLES: Record<string, { color: string; bg: string; border: string }> = {
   BOOST:      { color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: '#10b981' },

@@ -1,13 +1,52 @@
 /**
  * API Client for Alpha Terminal Backend
+ *
+ * Production (Vercel): defaults to same-origin `/api/v1` + vercel.json rewrites → Render.
+ * Override with VITE_API_URL / VITE_MONITOR_URL / VITE_WS_URL when needed.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1';
-// Monitor endpoints live on root (BaseHTTPServer), not under /api/v1
-const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || API_URL.replace('/api/v1', '');
+const PROD_RENDER_HOST = 'lotto-machine-wr6t.onrender.com';
+
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? '/api/v1' : 'http://localhost:8000/api/v1');
+
+export const MONITOR_URL =
+  import.meta.env.VITE_MONITOR_URL ||
+  (import.meta.env.PROD ? '' : 'http://localhost:8000');
+
+export const WS_URL =
+  import.meta.env.VITE_WS_URL ||
+  (import.meta.env.PROD
+    ? `wss://${PROD_RENDER_HOST}/api/v1`
+    : 'ws://localhost:8000/api/v1');
 
 const DEFAULT_TIMEOUT_MS = 10_000; // 10s — fail fast, don't hang
+
+async function fetchWithRenderWakeRetry(
+  url: string,
+  init?: RequestInit,
+  retries = 3,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if ((res.status === 503 || res.status === 502) && attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Failed to fetch');
+}
 
 function withTimeout(ms: number = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; clear: () => void } {
   const controller = new AbortController();
@@ -25,7 +64,7 @@ export const api = {
   async get<T>(endpoint: string, timeoutMs?: number): Promise<T> {
     const { signal, clear } = withTimeout(timeoutMs);
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, { signal });
+      const response = await fetchWithRenderWakeRetry(`${API_URL}${endpoint}`, { signal });
       if (!response.ok) {
         throw new Error(`API Error: ${response.statusText}`);
       }
@@ -41,7 +80,7 @@ export const api = {
   async post<T>(endpoint: string, data: any, timeoutMs?: number): Promise<T> {
     const { signal, clear } = withTimeout(timeoutMs);
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetchWithRenderWakeRetry(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -170,7 +209,7 @@ export const killchainApi = {
   monitor: async () => {
     const { signal, clear } = withTimeout();
     try {
-      const res = await fetch(`${MONITOR_URL}/kill-chain`, { signal });
+      const res = await fetchWithRenderWakeRetry(`${MONITOR_URL}/kill-chain`, { signal });
       if (!res.ok) throw new Error(`Kill chain: ${res.statusText}`);
       return res.json();
     } catch (e: any) {
@@ -181,7 +220,7 @@ export const killchainApi = {
   paperTrades: async () => {
     const { signal, clear } = withTimeout();
     try {
-      const res = await fetch(`${MONITOR_URL}/paper-trades`, { signal });
+      const res = await fetchWithRenderWakeRetry(`${MONITOR_URL}/paper-trades`, { signal });
       if (!res.ok) throw new Error(`Paper trades: ${res.statusText}`);
       return res.json();
     } catch (e: any) {
@@ -259,7 +298,7 @@ export const briefApi = {
   get: async () => {
     const { signal, clear } = withTimeout(30_000);
     try {
-      const res = await fetch(`${MONITOR_URL}/morning-brief`, { signal });
+      const res = await fetchWithRenderWakeRetry(`${MONITOR_URL}/morning-brief`, { signal });
       if (!res.ok) throw new Error(`Brief: ${res.statusText}`);
       return res.json();
     } catch (e: any) {
@@ -270,7 +309,7 @@ export const briefApi = {
   generate: async () => {
     const { signal, clear } = withTimeout(120_000); // generation can be slow
     try {
-      const res = await fetch(`${MONITOR_URL}/morning-brief/generate`, { signal });
+      const res = await fetchWithRenderWakeRetry(`${MONITOR_URL}/morning-brief/generate`, { signal });
       if (!res.ok) throw new Error(`Brief generate: ${res.statusText}`);
       return res.json();
     } catch (e: any) {
@@ -281,7 +320,7 @@ export const briefApi = {
   signalIntel: async () => {
     const { signal, clear } = withTimeout(60_000);
     try {
-      const res = await fetch(`${MONITOR_URL}/signal-intel`, { signal });
+      const res = await fetchWithRenderWakeRetry(`${MONITOR_URL}/signal-intel`, { signal });
       if (!res.ok) throw new Error(`Signal intel: ${res.statusText}`);
       return res.json();
     } catch (e: any) {

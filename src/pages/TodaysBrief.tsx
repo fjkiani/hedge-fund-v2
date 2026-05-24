@@ -28,9 +28,7 @@ import { IndexStrip } from '../components/brief/IndexStrip';
 import { GateHealthBar } from '../components/brief/GateHealthBar';
 import { MasterBriefPanels } from '../components/brief/MasterBriefPanels';
 
-const MONITOR_URL = import.meta.env.VITE_MONITOR_URL || 
-  (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+import { API_URL, briefApi } from '../lib/api';
 
 // ── Interfaces ────────────────────────────────────────────
 
@@ -111,14 +109,17 @@ export function TodaysBrief() {
 
   // ── Fetch brief ────────────────────────────────────────
   const fetchBrief = useCallback(() => {
-    fetch(`${MONITOR_URL}/morning-brief`)
-      .then(r => r.json())
-      .then(data => {
+    briefApi
+      .get()
+      .then((data) => {
         if (data.error) setError(data.error);
         else setBrief(data);
         setLoading(false);
       })
-      .catch(e => { setError(e.message); setLoading(false); });
+      .catch((e) => {
+        setError(e.message || 'Failed to fetch');
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => { fetchBrief(); }, [fetchBrief]);
@@ -159,7 +160,7 @@ export function TodaysBrief() {
     if (allTickers.length === 0) return;
 
     // Gate signals (confidence scores)
-    fetch(`${MONITOR_URL}/data/gate_signals_today.json`)
+    fetch(`${API_URL}/gate/signals/today`)
       .then(r => r.ok ? r.json() : [])
       .then(signals => { if (Array.isArray(signals)) setGateSignals(signals); })
       .catch(() => {});

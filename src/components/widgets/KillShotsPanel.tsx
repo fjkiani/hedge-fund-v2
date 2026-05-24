@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { MONITOR_URL } from '../../lib/api';
 
 interface KillShotsData {
   divergence_score: number;
@@ -24,8 +25,6 @@ interface KillShotsData {
   timestamp: string;
   error?: string;
 }
-
-const MONITOR_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
 
 const VERDICT_STYLES: Record<string, { bg: string; border: string; text: string; icon: string }> = {
   BOOST:     { bg: 'rgba(34,197,94,0.08)',  border: '#22c55e', text: '#4ade80', icon: '🚀' },

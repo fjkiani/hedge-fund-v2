@@ -1,5 +1,40 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://lotto-machine-wr6t.onrender.com/api/:path*"
+    },
+    {
+      "source": "/morning-brief",
+      "destination": "https://lotto-machine-wr6t.onrender.com/morning-brief"
+    },
+    {
+      "source": "/morning-brief/:path*",
+      "destination": "https://lotto-machine-wr6t.onrender.com/morning-brief/:path*"
+    },
+    {
+      "source": "/kill-chain",
+      "destination": "https://lotto-machine-wr6t.onrender.com/kill-chain"
+    },
+    {
+      "source": "/kill-shots-live",
+      "destination": "https://lotto-machine-wr6t.onrender.com/kill-shots-live"
+    },
+    {
+      "source": "/health",
+      "destination": "https://lotto-machine-wr6t.onrender.com/health"
+    },
+    {
+      "source": "/signal-intel",
+      "destination": "https://lotto-machine-wr6t.onrender.com/signal-intel"
+    },
+    {
+      "source": "/paper-trades",
+      "destination": "https://lotto-machine-wr6t.onrender.com/paper-trades"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
   ]
 }
