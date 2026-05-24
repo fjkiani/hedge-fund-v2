@@ -199,13 +199,26 @@ export function ChartContainer() {
     }, [symbol, timeframe]);
 
     // ── Fetch Matrix ──────────────────────────────────────────────────────────
-    const fetchMatrix = useCallback(async () => {
-        setMatrixError(null);
+    const fetchMatrix = useCallback(async (isRetry = false) => {
+        if (!isRetry) setMatrixError(null);
         try {
-            const res = await chartApi.getMatrix(symbol) as MatrixResponse;
+            const res = await chartApi.getMatrix(symbol) as MatrixResponse & { _stale?: boolean };
             setMatrix(res);
+            if (res._stale) {
+                setMatrixError('Showing cached matrix — fresh build still warming up');
+            }
         } catch (e: any) {
-            setMatrixError(e?.message ?? 'Matrix unavailable');
+            const msg = e?.message ?? 'Matrix unavailable';
+            const waking = /503|502|timed out|Failed to fetch/i.test(msg);
+            setMatrixError(
+                waking
+                    ? 'Backend warming up — first Trap Matrix load can take up to 60s'
+                    : msg,
+            );
+            // One auto-retry after Render wake / cold build
+            if (waking && !isRetry) {
+                setTimeout(() => fetchMatrix(true), 8000);
+            }
         } finally {
             setMatrixLoading(false);
         }

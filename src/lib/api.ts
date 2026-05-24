@@ -159,12 +159,15 @@ export const darkpoolApi = {
     api.get(`/darkpool/top-positions?limit=${limit}`),
 };
 
-// Chart / Trap Matrix
+// Chart / Trap Matrix — cold build on Render can take 15–30s (multi-source fetch)
+const MATRIX_TIMEOUT_MS = 60_000;
+const OHLC_TIMEOUT_MS = 30_000;
+
 export const chartApi = {
   getMatrix: (symbol: string) =>
-    api.get(`/charts/${symbol}/matrix`),
+    api.get(`/charts/${symbol}/matrix`, MATRIX_TIMEOUT_MS),
   getOHLC: (symbol: string, period: string = '3mo', interval: string = '1d') =>
-    api.get(`/charts/${symbol}/ohlc?period=${period}&interval=${interval}`),
+    api.get(`/charts/${symbol}/ohlc?period=${period}&interval=${interval}`, OHLC_TIMEOUT_MS),
 };
 
 // System Health
