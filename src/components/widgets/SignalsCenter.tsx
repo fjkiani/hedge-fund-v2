@@ -20,6 +20,7 @@ export function SignalsCenter() {
   const [masterSignals, setMasterSignals] = useState<SignalData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedWarning, setFeedWarning] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'master' | 'high'>('all');
   const [dpConfluence, setDpConfluence] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -43,14 +44,29 @@ export function SignalsCenter() {
         signalsApi.getMaster() as Promise<SignalResponse>
       ]);
 
+      const hardFailures: string[] = [];
+      const softWarnings: string[] = [];
       if (allRes.status === 'fulfilled') {
         setSignals(allRes.value?.signals || []);
         setRegimeTier(allRes.value?.regime_tier ?? 1);
+        if ((allRes.value?.count ?? 0) === 0) softWarnings.push('0 active signals');
+        if ((allRes.value?.master_count ?? 0) === 0) softWarnings.push('master_count=0');
+      } else {
+        hardFailures.push(`signals: ${allRes.reason?.message || allRes.reason || 'failed'}`);
       }
-      if (masterRes.status === 'fulfilled') setMasterSignals(masterRes.value?.signals || []);
-      setError(null);
-    } catch {
-      // Silently fail — signals widget is informational, not critical
+      if (masterRes.status === 'fulfilled') {
+        setMasterSignals(masterRes.value?.signals || []);
+        if ((masterRes.value?.master_count ?? masterRes.value?.signals?.length ?? 0) === 0) {
+          softWarnings.push('master feed empty');
+        }
+      } else {
+        hardFailures.push(`master: ${masterRes.reason?.message || masterRes.reason || 'failed'}`);
+      }
+      setError(hardFailures.length ? hardFailures.join(' · ') : null);
+      setFeedWarning(softWarnings.length ? softWarnings.join(' · ') : null);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load signals');
+      setFeedWarning(null);
     } finally {
       setLoading(false);
     }
@@ -133,6 +149,23 @@ export function SignalsCenter() {
           <Badge variant="bullish">{masterSignals.length} Master</Badge>
         </div>
       </div>
+
+      {feedWarning && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid rgba(248, 113, 113, 0.35)',
+            background: 'rgba(127, 29, 29, 0.2)',
+            color: '#fecaca',
+            fontSize: 12,
+            fontFamily: 'var(--font-mono, monospace)',
+          }}
+        >
+          SENSOR WARNING — {feedWarning}. Empty list ≠ no opportunity; core feeds may be blind.
+        </div>
+      )}
 
       {/* Regime Badge */}
       {(() => {
