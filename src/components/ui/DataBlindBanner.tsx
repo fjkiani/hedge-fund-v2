@@ -1,16 +1,9 @@
 /**
  * DataBlindBanner — surfaces broken institutional feeds so empty UI ≠ healthy.
- * Polls via existing api.ts clients (no ad-hoc URL theater). Never invents signals.
+ * Polls critical endpoints; never invents signal content.
  */
 import { useEffect, useState } from 'react';
-import {
-  api,
-  axlfiApi,
-  darkpoolApi,
-  gammaApi,
-  killchainApi,
-  signalsApi,
-} from '../../lib/api';
+import { API_URL, MONITOR_URL } from '../../lib/api';
 
 export type BlindFeed = {
   id: string;
@@ -23,23 +16,18 @@ type Probe = {
   id: string;
   label: string;
   severity: 'critical' | 'warning';
-  run: () => Promise<string | null>; // null = healthy
+  url: string;
+  interpret: (status: number, body: any) => string | null; // null = healthy
 };
-
-function errDetail(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/timed out/i.test(msg)) return 'timeout';
-  if (/API Error:/i.test(msg)) return msg.replace(/^API Error:\s*/i, 'HTTP ');
-  return msg || 'unreachable';
-}
 
 const probes: Probe[] = [
   {
     id: 'master',
     label: 'Master signals',
     severity: 'critical',
-    run: async () => {
-      const body: any = await signalsApi.getMaster();
+    url: `${API_URL}/signals/master`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status}`;
       const n = body?.master_count ?? body?.count ?? (body?.signals?.length ?? 0);
       if (n === 0) return '0 master signals during poll';
       return null;
@@ -47,34 +35,12 @@ const probes: Probe[] = [
   },
   {
     id: 'gamma',
-    label: 'Gamma / walls',
+    label: 'AXLFI option walls / GEX',
     severity: 'critical',
-    run: async () => {
-      // Prefer existing gammaApi; walls-backed when CBOE is blind
-      const body: any = await gammaApi.get('SPY');
-      if (!body?.current_price && !body?.spot_price) {
-        return 'no spot (CBOE + walls blind)';
-      }
-      return null;
-    },
-  },
-  {
-    id: 'darkpool',
-    label: 'Dark pool SPY',
-    severity: 'critical',
-    run: async () => {
-      const body: any = await darkpoolApi.getSummary('SPY');
-      const pct = body?.summary?.short_volume_pct ?? body?.summary?.dp_percent;
-      if (pct === undefined || pct === null) return 'summary missing short_volume_pct';
-      return null;
-    },
-  },
-  {
-    id: 'walls',
-    label: 'AXLFI walls',
-    severity: 'critical',
-    run: async () => {
-      const body: any = await axlfiApi.wallsToday('SPY');
+    // Walls + GEX come from the dark-pool API (AXLFI), not a standalone CBOE link
+    url: `${API_URL}/axlfi/option-walls/SPY/today`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status} — AXLFI walls blind`;
       const callWall = body?.call_wall ?? body?.callWall;
       const putWall = body?.put_wall ?? body?.putWall;
       if (!callWall && !putWall) return 'walls empty (call/put missing)';
@@ -82,11 +48,35 @@ const probes: Probe[] = [
     },
   },
   {
+    id: 'darkpool',
+    label: 'Dark pool SPY',
+    severity: 'critical',
+    url: `${API_URL}/darkpool/SPY/summary`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status} — AXLFI/DP blind`;
+      const pct = body?.summary?.short_volume_pct ?? body?.summary?.dp_percent;
+      if (pct === undefined || pct === null) return 'summary missing short_volume_pct';
+      return null;
+    },
+  },
+  {
+    id: 'walls',
+    label: 'AXLFI walls (QQQ cross-check)',
+    severity: 'critical',
+    url: `${API_URL}/axlfi/option-walls/QQQ/today`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status}`;
+      const callWall = body?.call_wall ?? body?.callWall;
+      return callWall ? null : 'QQQ call_wall missing';
+    },
+  },
+  {
     id: 'gate',
     label: 'Signal gate',
     severity: 'warning',
-    run: async () => {
-      const body: any = await api.get('/gate/health?n=20');
+    url: `${API_URL}/gate/health`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status}`;
       if ((body?.allowed_count ?? 0) === 0 && (body?.blocked_count ?? 0) > 0) {
         return `blocked ${body.blocked_count} / allowed 0`;
       }
@@ -97,12 +87,12 @@ const probes: Probe[] = [
     id: 'killchain',
     label: 'Kill chain',
     severity: 'warning',
-    run: async () => {
-      const body: any = await killchainApi.monitor();
+    url: `${MONITOR_URL}/kill-chain`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status}`;
       const kc = body?.kill_chain ?? body;
       const gex = kc?.layer_2?.value ?? kc?.layers?.gex_total;
-      // Walls fallback can legitimately report total_gex=0 — only flag if L2 missing entirely
-      if (kc?.layer_2 == null && gex == null) return 'L2 missing';
+      if (gex === 0 || gex === 0.0) return 'L2 GEX = 0 (blind)';
       return null;
     },
   },
@@ -112,15 +102,25 @@ async function runProbes(): Promise<BlindFeed[]> {
   const results = await Promise.all(
     probes.map(async (p) => {
       try {
-        const detail = await p.run();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20_000);
+        const res = await fetch(p.url, { signal: controller.signal, headers: { Accept: 'application/json' } });
+        clearTimeout(timer);
+        let body: any = null;
+        try {
+          body = await res.json();
+        } catch {
+          body = null;
+        }
+        const detail = p.interpret(res.status, body);
         if (!detail) return null;
         return { id: p.id, label: p.label, severity: p.severity, detail } satisfies BlindFeed;
-      } catch (e: unknown) {
+      } catch (e: any) {
         return {
           id: p.id,
           label: p.label,
           severity: p.severity,
-          detail: errDetail(e),
+          detail: e?.name === 'AbortError' ? 'timeout' : (e?.message || 'unreachable'),
         } satisfies BlindFeed;
       }
     }),
