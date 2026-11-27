@@ -35,27 +35,39 @@ const probes: Probe[] = [
   },
   {
     id: 'gamma',
-    label: 'GEX / options',
+    label: 'AXLFI option walls / GEX',
     severity: 'critical',
-    url: `${API_URL}/gamma/SPY`,
-    interpret: (status) => (status === 200 ? null : `HTTP ${status} — CBOE/GEX blind`),
+    // Walls + GEX come from the dark-pool API (AXLFI), not a standalone CBOE link
+    url: `${API_URL}/axlfi/option-walls/SPY/today`,
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status} — AXLFI walls blind`;
+      const callWall = body?.call_wall ?? body?.callWall;
+      const putWall = body?.put_wall ?? body?.putWall;
+      if (!callWall && !putWall) return 'walls empty (call/put missing)';
+      return null;
+    },
   },
   {
     id: 'darkpool',
     label: 'Dark pool SPY',
     severity: 'critical',
     url: `${API_URL}/darkpool/SPY/summary`,
-    interpret: (status) => (status === 200 ? null : `HTTP ${status} — Stockgrid/DP blind`),
+    interpret: (status, body) => {
+      if (status !== 200) return `HTTP ${status} — AXLFI/DP blind`;
+      const pct = body?.summary?.short_volume_pct ?? body?.summary?.dp_percent;
+      if (pct === undefined || pct === null) return 'summary missing short_volume_pct';
+      return null;
+    },
   },
   {
     id: 'walls',
-    label: 'Intraday walls',
+    label: 'AXLFI walls (QQQ cross-check)',
     severity: 'critical',
-    url: `${API_URL}/intraday/snapshot`,
+    url: `${API_URL}/axlfi/option-walls/QQQ/today`,
     interpret: (status, body) => {
       if (status !== 200) return `HTTP ${status}`;
-      const wallUnknown = body?.wall_status === 'unknown' || (body?.spy_call_wall === 0 && body?.spy_put_wall === 0);
-      return wallUnknown ? 'wall_status unknown / walls at 0' : null;
+      const callWall = body?.call_wall ?? body?.callWall;
+      return callWall ? null : 'QQQ call_wall missing';
     },
   },
   {
