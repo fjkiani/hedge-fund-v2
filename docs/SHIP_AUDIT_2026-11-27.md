@@ -21,9 +21,9 @@ Frontend mostly polls. WebSocket `/api/v1/ws/signals` handshakes (101) but is no
 |--------|----------|
 | Master signals | `master_count=0` |
 | Gate | blocked 20 / allowed 0 |
-| GEX / walls | Must come from **AXLFI dark-pool API** (`/axlfi/option-walls/*`), not CBOE. CBOE was a wrong assumption. |
-| Dark pool | AXLFI v2 `/api/darkpools/*` (Pro-gated for bare HTTP; walls public). Legacy `axlfi-app-backend` is dead HTML shell. |
-| Master signals | DarkPoolTrend from AXLFI 5d `position_usd` trend — was empty because StockgridClient still hit dead routes. |
+| GEX | `/gamma/SPY` 404; kill-chain L2 value 0 |
+| Dark pool | `/darkpool/SPY/summary` 404 Stockgrid |
+| Options flow | CBOE 403 → 502 |
 | Walls | intraday `wall_status=unknown`, walls at 0 |
 | AXLFI | dashboard 503; signals `[]` |
 | Oracle | POST 200 but `UNAVAILABLE` / `UNKNOWN` |
