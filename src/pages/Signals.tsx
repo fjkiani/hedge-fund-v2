@@ -95,8 +95,6 @@ export function Signals() {
   const [scorecard, setScorecard] = useState<ScorecardEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [scorecardLoading, setScorecardLoading] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [scorecardError, setScorecardError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('active');
 
   useEffect(() => { loadHistory(); loadScorecard(); }, []);
@@ -105,26 +103,16 @@ export function Signals() {
     try {
       const data = (await signalsApi.getHistory()) as { alerts: AlertHistoryItem[] };
       setHistory(data?.alerts || []);
-      setHistoryError(null);
-    } catch (e: any) {
-      setHistory([]);
-      setHistoryError(e?.message || 'Failed to load alert history');
-    } finally {
-      setHistoryLoading(false);
-    }
+    } catch { /* silent */ }
+    finally { setHistoryLoading(false); }
   };
 
   const loadScorecard = async () => {
     try {
       const data = (await signalsApi.getScorecard()) as { entries: ScorecardEntry[] };
       setScorecard(data?.entries || []);
-      setScorecardError(null);
-    } catch (e: any) {
-      setScorecard([]);
-      setScorecardError(e?.message || 'Failed to load scorecard');
-    } finally {
-      setScorecardLoading(false);
-    }
+    } catch { /* silent */ }
+    finally { setScorecardLoading(false); }
   };
 
   /* ── Derived stats ── */
@@ -168,8 +156,6 @@ export function Signals() {
         <Section title="Alert History (Today)" count={history.length} countLabel="alerts">
           {historyLoading ? (
             <EmptyState loading message="Loading alerts…" />
-          ) : historyError ? (
-            <EmptyState icon="⚠️" message={`History feed error: ${historyError}`} />
           ) : history.length === 0 ? (
             <EmptyState icon="📭" message="No alerts captured today" />
           ) : (
@@ -210,10 +196,8 @@ export function Signals() {
           {/* Score entries */}
           {scorecardLoading ? (
             <EmptyState loading message="Loading scorecard…" />
-          ) : scorecardError ? (
-            <EmptyState icon="⚠️" message={`Scorecard feed error: ${scorecardError}`} />
           ) : scorecard.length === 0 ? (
-            <EmptyState icon="📊" message="No scored signals today — outcome tracker empty (not a 100% win day)" />
+            <EmptyState icon="📊" message="No scored signals today" />
           ) : (
             <DataList>
               {scorecard.map((entry, i) => (
