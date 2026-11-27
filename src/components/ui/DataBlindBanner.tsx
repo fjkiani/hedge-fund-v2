@@ -140,6 +140,7 @@ export function DataBlindBanner({ refreshMs = 120_000 }: { refreshMs?: number })
   if (feeds.length === 0) return null;
 
   const critical = feeds.filter((f) => f.severity === 'critical').length;
+  const warnings = feeds.length - critical;
 
   return (
     <div
@@ -157,7 +158,8 @@ export function DataBlindBanner({ refreshMs = 120_000 }: { refreshMs?: number })
       }}
     >
       <div style={{ fontWeight: 700, marginBottom: '0.35rem', letterSpacing: '0.02em' }}>
-        DATA BLIND — {critical} critical feed{critical === 1 ? '' : 's'} degraded
+        DATA BLIND — {feeds.length} feed{feeds.length === 1 ? '' : 's'} degraded
+        {critical ? ` (${critical} critical${warnings ? `, ${warnings} warning` : ''})` : ''}
         {checkedAt ? ` · checked ${checkedAt.toLocaleTimeString()}` : ''}
       </div>
       <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>

@@ -13,12 +13,16 @@ import { Gamma } from './pages/Gamma';
 import { Squeeze } from './pages/Squeeze';
 import { Options } from './pages/Options';
 import { LiveSession } from './pages/LiveSession';
+import { DataBlindBanner } from './components/ui/DataBlindBanner';
 import './index.css';
 
 function App() {
   return (
     <BrowserRouter>
       <NavBar />
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0.75rem 1.5rem 0' }}>
+        <DataBlindBanner />
+      </div>
       <Routes>
         <Route path="/" element={<TodaysBrief />} />
         <Route path="/dashboard" element={<Dashboard />} />
